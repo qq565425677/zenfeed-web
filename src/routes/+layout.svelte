@@ -4,6 +4,7 @@
 	import { locale, waitLocale } from "svelte-i18n";
 	import { browser } from "$app/environment";
 	import AudioPlayer from "$lib/components/AudioPlayer.svelte";
+	import { audioPlayerStore } from "$lib/stores/audioPlayerStore";
 	let { children } = $props();
 	let isLocaleLoading = $state(true); // State to track loading
 
@@ -36,7 +37,11 @@
 	<!-- Optional: Show a loading indicator while the locale loads -->
 	<!-- <div>Loading language...</div> -->
 {:else}
-	{@render children()}
+	<div
+		class={`transition-[padding] duration-300 ease-out ${$audioPlayerStore.isPlayerVisible ? "pb-28 md:pb-24" : ""}`}
+	>
+		{@render children()}
+	</div>
 	<AudioPlayer />
 {/if}
 
