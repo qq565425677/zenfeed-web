@@ -14,10 +14,77 @@ const webAccessPassword =
     privateEnv.ZENFEED_WEB_ACCESS_PASSWORD || "";
 const webAccessSecret =
     privateEnv.ZENFEED_WEB_ACCESS_SECRET || webAccessPassword;
+const allowedBackendListRaw =
+    privateEnv.ZENFEED_ALLOWED_BACKEND_URLS || "localhost,127.0.0.1,zenfeed";
+
+type AllowedBackends = {
+    hosts: Set<string>;
+    origins: Set<string>;
+};
+
+function parseAllowedBackends(input: string): AllowedBackends {
+    const hosts = new Set<string>();
+    const origins = new Set<string>();
+    const items = input
+        .split(/[,\s]+/)
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+    for (const item of items) {
+        if (item.includes("://")) {
+            try {
+                const parsed = new URL(item);
+                if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+                    origins.add(parsed.origin.toLowerCase());
+                }
+            } catch {
+                // Ignore invalid whitelist item.
+            }
+            continue;
+        }
+        hosts.add(item.toLowerCase());
+    }
+
+    return { hosts, origins };
+}
+
+function validateBackendUrl(backendUrl: string, allowed: AllowedBackends): URL {
+    let parsed: URL;
+    try {
+        parsed = new URL(backendUrl);
+    } catch {
+        throw skError(400, `Bad Request: Invalid backendUrl format: ${backendUrl}`);
+    }
+
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        throw skError(400, "Bad Request: backendUrl must use http or https.");
+    }
+    if (parsed.pathname !== "/" || parsed.search || parsed.hash) {
+        throw skError(400, "Bad Request: backendUrl must be an origin (no path/query/hash).");
+    }
+
+    const host = parsed.hostname.toLowerCase();
+    const hostWithPort = parsed.host.toLowerCase();
+    const origin = parsed.origin.toLowerCase();
+    const isAllowed =
+        allowed.origins.has(origin) ||
+        allowed.hosts.has(host) ||
+        allowed.hosts.has(hostWithPort);
+    if (!isAllowed) {
+        throw skError(
+            403,
+            `Forbidden: backendUrl host is not in allowlist: ${parsed.host}`,
+        );
+    }
+
+    return parsed;
+}
+
+const allowedBackends = parseAllowedBackends(allowedBackendListRaw);
 
 // This handler will attempt to proxy requests for any method (GET, POST, etc.)
 const handler: RequestHandler = async (event) => {
-    const { request, fetch, params, url, cookies } = event;
+    const { request, params, url, cookies } = event;
     const backendUrl = url.searchParams.get('backendUrl'); // Get backend URL from query parameter
 
     if (!backendUrl) {
@@ -25,12 +92,7 @@ const handler: RequestHandler = async (event) => {
         throw skError(400, 'Bad Request: Missing backendUrl query parameter for proxy request.');
     }
 
-    try {
-        // Validate the backendUrl format (optional but recommended)
-        new URL(backendUrl);
-    } catch (e) {
-        throw skError(400, `Bad Request: Invalid backendUrl format: ${backendUrl}`);
-    }
+    const parsedBackendUrl = validateBackendUrl(backendUrl, allowedBackends);
 
     // `params.path` will contain the matched path segments after /api/
     const endpointPath = params.path;
@@ -59,21 +121,30 @@ const handler: RequestHandler = async (event) => {
         throw skError(403, "Forbidden: Web access is locked.");
     }
 
-    const targetUrl = `${backendUrl}/${endpointPath}`;
+    const targetUrl = `${parsedBackendUrl.origin}/${endpointPath}`;
 
     console.log(`Proxying ${request.method} request for /api/${endpointPath} to: ${targetUrl}`); // Optional: server-side logging
 
     try {
-        const forwardHeaders: HeadersInit = {
-            'Content-Type': request.headers.get('Content-Type') || '',
-            'Accept': request.headers.get('Accept') || '*/*',
-        };
+        const forwardHeaders = new Headers();
+        const contentType = request.headers.get('Content-Type');
+        const accept = request.headers.get('Accept');
+        if (contentType) {
+            forwardHeaders.set('Content-Type', contentType);
+        }
+        if (accept) {
+            forwardHeaders.set('Accept', accept);
+        } else {
+            forwardHeaders.set('Accept', '*/*');
+        }
+        // Keep same-origin semantics for backend when disable_cors=true.
+        forwardHeaders.set('Origin', parsedBackendUrl.origin);
         if (isProtectedConfigEndpoint && protectedApiAuthToken) {
-            forwardHeaders['Authorization'] = `Bearer ${protectedApiAuthToken}`;
+            forwardHeaders.set('Authorization', `Bearer ${protectedApiAuthToken}`);
         }
 
         // Forward the request to the backend
-        const response = await fetch(targetUrl, {
+        const response = await globalThis.fetch(targetUrl, {
             method: request.method,
             headers: forwardHeaders,
             body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : null,
