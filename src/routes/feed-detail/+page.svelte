@@ -35,7 +35,7 @@
     let currentFeedIndex = -1;
     let swipeStartTime = 0;
     let autoSlideDuration = 300; // Auto slide animation duration (ms)
-    let feedContainer: HTMLDivElement;
+    let feedContainer: HTMLElement;
 
     // Function to check if next feed exists
     $: hasNextFeed = currentFeedIndex < feedsList.length - 1;
@@ -368,7 +368,7 @@
     <title>{feedData?.title || $_("feedDetail.pageTitle")}</title>
 </svelte:head>
 
-<div
+<main
     class="min-h-screen p-4 md:p-8 bg-base-100 relative"
     bind:this={feedContainer}
     on:touchstart|passive={handleTouchStart}
@@ -583,4 +583,4 @@
             </svg>
         </div>
     {/if}
-</div>
+</main>

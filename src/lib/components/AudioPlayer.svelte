@@ -104,14 +104,19 @@
         transition:slide={{ duration: 300 }}
     >
         <div class="max-w-4xl mx-auto px-4 py-2">
-            <div class="relative h-2 mb-1 cursor-pointer" on:click={handleSeek}>
+            <button
+                type="button"
+                class="relative h-2 mb-1 w-full cursor-pointer"
+                aria-label="Seek playback position"
+                on:click={handleSeek}
+            >
                 <progress
                     bind:this={progress}
                     class="progress progress-primary absolute top-1/2 -translate-y-1/2 w-full h-1"
                     value={$state.currentTime}
                     max={$state.duration || 1}
                 ></progress>
-            </div>
+            </button>
 
             <div class="flex items-center justify-between gap-4">
                 <div class="flex-1 min-w-0">
@@ -131,7 +136,9 @@
 
                 <div class="flex items-center gap-2">
                     <button
+                        type="button"
                         class="btn btn-ghost btn-sm btn-circle"
+                        aria-label="Previous track"
                         on:click={state.playPrevious}
                         disabled={!$state.currentTrack ||
                             $state.playlist.findIndex(
@@ -154,7 +161,9 @@
                     </button>
 
                     <button
+                        type="button"
                         class="btn btn-primary btn-sm btn-circle"
+                        aria-label={$state.isPlaying ? "Pause" : "Play"}
                         on:click={state.togglePlayPause}
                         disabled={!$state.currentTrack}
                     >
@@ -195,7 +204,9 @@
                     </button>
 
                     <button
+                        type="button"
                         class="btn btn-ghost btn-sm btn-circle"
+                        aria-label="Next track"
                         on:click={state.playNext}
                         disabled={!$state.currentTrack ||
                             $state.playlist.findIndex(
@@ -220,7 +231,9 @@
                 </div>
 
                 <button
+                    type="button"
                     class="btn btn-ghost btn-sm btn-circle absolute top-0 right-1 translate-y-[-50%] bg-base-300"
+                    aria-label="Close player"
                     on:click={state.closePlayer}
                 >
                     <svg

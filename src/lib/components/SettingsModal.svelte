@@ -27,11 +27,12 @@
 
         <!-- Language Settings -->
         <div class="form-control mb-4">
-            <label class="label">
+            <div class="label" id="settings-language-label">
                 <span class="label-text">{$_("settingsModal.language")}</span>
-            </label>
-            <div class="join">
+            </div>
+            <div class="join" role="group" aria-labelledby="settings-language-label">
                 <button
+                    type="button"
                     class="btn join-item flex-1 {$locale === 'en'
                         ? 'btn-active'
                         : ''}"
@@ -40,6 +41,7 @@
                     English
                 </button>
                 <button
+                    type="button"
                     class="btn join-item flex-1 {$locale === 'zh'
                         ? 'btn-active'
                         : ''}"
@@ -62,24 +64,25 @@
                 placeholder="e.g., http://localhost:1300"
                 class="input input-bordered w-full"
                 bind:value={tempApiUrl}
+                aria-describedby="apiUrlHint"
             />
-            <label class="label">
+            <div class="label" id="apiUrlHint">
                 <span class="label-text-alt"
                     >{$_("settingsModal.backendUrlHint")}</span
                 >
-            </label>
+            </div>
         </div>
 
         <div class="modal-action">
-            <button class="btn btn-primary" onclick={saveSettings}
+            <button type="button" class="btn btn-primary" onclick={saveSettings}
                 >{$_("settingsModal.save")}</button
             >
-            <button class="btn" onclick={closeModal}
+            <button type="button" class="btn" onclick={closeModal}
                 >{$_("settingsModal.cancel")}</button
             >
         </div>
     </div>
     <form method="dialog" class="modal-backdrop">
-        <button onclick={closeModal}>close</button>
+        <button type="button" onclick={closeModal}>close</button>
     </form>
 </dialog>

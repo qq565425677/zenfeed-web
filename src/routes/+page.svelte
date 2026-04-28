@@ -205,44 +205,42 @@
         </div>
     {/if}
 
-    <div role="tablist" class="tabs tabs-bordered mb-6 pl-8">
-        {#if availableTabs.includes("past")}
-            <a
-                role="tab"
-                class="tab pl-4 {activeTab === 'past' ? 'tab-active' : ''}"
-                onclick={() => setActiveTab("past")}
-                onkeypress={(e) => e.key === "Enter" && setActiveTab("past")}
-                tabindex={activeTab === "past" ? 0 : -1}
-            >
-                {$_("tabs.past24h")}
-            </a>
-        {/if}
-        {#if !disableNotifications && availableTabs.includes("notifications")}
-            <a
-                role="tab"
-                class="tab pl-4 {activeTab === 'notifications'
-                    ? 'tab-active'
-                    : ''}"
-                onclick={() => setActiveTab("notifications")}
-                onkeypress={(e) =>
-                    e.key === "Enter" && setActiveTab("notifications")}
-                tabindex={activeTab === "notifications" ? 0 : -1}
-            >
-                {$_("tabs.notifications")}
-            </a>
-        {/if}
-        {#if !disableAdvancedConfig && availableTabs.includes("advanced")}
-            <a
-                role="tab"
-                class="tab pl-4 {activeTab === 'advanced' ? 'tab-active' : ''}"
-                onclick={() => setActiveTab("advanced")}
-                onkeypress={(e) =>
-                    e.key === "Enter" && setActiveTab("advanced")}
-                tabindex={activeTab === "advanced" ? 0 : -1}
-            >
-                {$_("tabs.advancedConfig")}
-            </a>
-        {/if}
+        <div role="tablist" class="tabs tabs-bordered mb-6 pl-8">
+            {#if availableTabs.includes("past")}
+	            <button
+	                type="button"
+	                role="tab"
+	                class="tab pl-4 {activeTab === 'past' ? 'tab-active' : ''}"
+	                onclick={() => setActiveTab("past")}
+	                tabindex={activeTab === "past" ? 0 : -1}
+	            >
+	                {$_("tabs.past24h")}
+	            </button>
+	        {/if}
+	        {#if !disableNotifications && availableTabs.includes("notifications")}
+	            <button
+	                type="button"
+	                role="tab"
+	                class="tab pl-4 {activeTab === 'notifications'
+	                    ? 'tab-active'
+	                    : ''}"
+	                onclick={() => setActiveTab("notifications")}
+	                tabindex={activeTab === "notifications" ? 0 : -1}
+	            >
+	                {$_("tabs.notifications")}
+	            </button>
+	        {/if}
+	        {#if !disableAdvancedConfig && availableTabs.includes("advanced")}
+	            <button
+	                type="button"
+	                role="tab"
+	                class="tab pl-4 {activeTab === 'advanced' ? 'tab-active' : ''}"
+	                onclick={() => setActiveTab("advanced")}
+	                tabindex={activeTab === "advanced" ? 0 : -1}
+	            >
+	                {$_("tabs.advancedConfig")}
+	            </button>
+	        {/if}
         <div class="tab flex-grow justify-end">
             <a
                 href="/wechat.png"
@@ -258,6 +256,7 @@
                 rel="noopener noreferrer"
                 class="btn btn-ghost btn-circle mr-2 tooltip tooltip-bottom"
                 data-tip={$_("nav.githubStarTooltip")}
+                aria-label={$_("nav.githubStarTooltip")}
             >
                 <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -271,7 +270,9 @@
                 </svg>
             </a>
             <button
+                type="button"
                 class="btn btn-ghost btn-circle"
+                aria-label={$_("settingsModal.title")}
                 onclick={() => (showSettingsModal = true)}
             >
                 <svg

@@ -827,16 +827,14 @@
               >
             </div>
             <ul
-              tabindex="0"
               class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-32 mt-1 max-h-60 overflow-y-auto"
             >
               {#each availableGroupByLabels as labelKey}
                 <li>
-                  <a
-                    href="#"
-                    role="button"
+                  <button
+                    type="button"
                     class:active={selectedGroupByLabel === labelKey}
-                    on:click|preventDefault={() => {
+                    on:click={() => {
                       if (selectedGroupByLabel !== labelKey) {
                         selectedGroupByLabel = labelKey;
                         // Save directly on selection
@@ -858,7 +856,7 @@
                         // activeGroupName = null; // Might cause flicker, test if needed
                       }
                       // Dropdown closes automatically
-                    }}>{labelKey}</a
+                    }}>{labelKey}</button
                   >
                 </li>
               {/each}
@@ -1098,10 +1096,10 @@
                 </button>
               {/each}
               <!-- Filler tab for style -->
-              <a
-                role="tab"
+              <div
+                aria-hidden="true"
                 class="tab flex-1 cursor-default [--tab-border-color:oklch(var(--b3))]"
-              ></a>
+              ></div>
             </div>
           {/if}
 
