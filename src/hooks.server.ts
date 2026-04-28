@@ -1,23 +1,17 @@
-import { env as privateEnv } from "$env/dynamic/private";
 import type { Handle } from "@sveltejs/kit";
-import { isWebAccessCookieValid, webAccessCookieName } from "$lib/server/advancedAuth";
-
-const webAccessPassword =
-    privateEnv.ZENFEED_WEB_ACCESS_PASSWORD || "";
-const webAccessSecret =
-    privateEnv.ZENFEED_WEB_ACCESS_SECRET || webAccessPassword;
+import {
+    getWebAccessCookieSecret,
+    isWebAccessCookieValid,
+    webAccessCookieName,
+} from "$lib/server/advancedAuth";
 
 export const handle: Handle = async ({ event, resolve }) => {
-    if (webAccessPassword === "") {
-        return resolve(event);
-    }
-
     const path = event.url.pathname;
     const isAuthEndpoint = path.startsWith("/api/web-auth");
     const isRootPage = path === "/";
     const isUnlocked = isWebAccessCookieValid(
         event.cookies.get(webAccessCookieName),
-        webAccessSecret,
+        getWebAccessCookieSecret(),
         Math.floor(Date.now() / 1000),
     );
 

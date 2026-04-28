@@ -171,13 +171,16 @@
   },
   "webAuth": {
     "title": "网页已加锁",
-    "description": "请输入密码后才能使用此网页。",
-    "passwordLabel": "访问密码",
-    "passwordPlaceholder": "请输入密码",
+    "description": "请输入验证器里的 6 位动态验证码后才能使用此网页。",
+    "codeLabel": "6 位动态验证码",
+    "codePlaceholder": "请输入 6 位验证码",
     "unlock": "解锁",
     "unlocking": "解锁中...",
-    "invalidPassword": "密码错误，请重试。",
-    "unlockFailed": "解锁失败，请稍后重试。"
+    "invalidCode": "验证码错误，请重试。",
+    "unlockFailed": "解锁失败，请稍后重试。",
+    "logout": "退出登录",
+    "loggingOut": "退出中...",
+    "logoutFailed": "退出失败，请稍后重试。"
   },
   "announcement": {
     "known": "我知道了"

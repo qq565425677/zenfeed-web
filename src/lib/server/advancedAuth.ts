@@ -1,7 +1,109 @@
+import { env as privateEnv } from "$env/dynamic/private";
 import { createHmac, timingSafeEqual } from "crypto";
 
 export const webAccessCookieName = "zenfeed_web_access";
 const webAccessTokenVersion = "v1";
+const defaultSessionMaxAgeSeconds = 30 * 24 * 60 * 60;
+const totpStepSeconds = 30;
+const totpDigits = 6;
+const totpWindow = 1;
+
+function requireTotpSecret(): string {
+    const secret = privateEnv.ZENFEED_WEB_TOTP_SECRET?.trim() || "";
+    if (!secret) {
+        throw new Error(
+            "Missing required env ZENFEED_WEB_TOTP_SECRET. zenfeed-web refuses to start without a TOTP secret.",
+        );
+    }
+
+    return secret;
+}
+
+function parseSessionMaxAgeSeconds(): number {
+    const raw = privateEnv.ZENFEED_WEB_SESSION_MAX_AGE_SECONDS?.trim() || "";
+    if (raw === "") {
+        return defaultSessionMaxAgeSeconds;
+    }
+
+    const parsed = Number.parseInt(raw, 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+        throw new Error(
+            `Invalid ZENFEED_WEB_SESSION_MAX_AGE_SECONDS: ${raw}. Expected a positive integer number of seconds.`,
+        );
+    }
+
+    return parsed;
+}
+
+function normalizeBase32Secret(input: string): string {
+    const normalized = input
+        .toUpperCase()
+        .replace(/[\s-]+/g, "")
+        .replace(/=+$/g, "");
+
+    if (!/^[A-Z2-7]+$/.test(normalized)) {
+        throw new Error(
+            "Invalid ZENFEED_WEB_TOTP_SECRET. Expected a Base32 secret containing only A-Z and 2-7.",
+        );
+    }
+
+    return normalized;
+}
+
+function decodeBase32(input: string): Buffer {
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+    let bits = 0;
+    let value = 0;
+    const bytes: number[] = [];
+
+    for (const char of input) {
+        const index = alphabet.indexOf(char);
+        if (index === -1) {
+            throw new Error(
+                "Invalid ZENFEED_WEB_TOTP_SECRET. Expected a valid Base32 secret.",
+            );
+        }
+
+        value = (value << 5) | index;
+        bits += 5;
+
+        if (bits >= 8) {
+            bits -= 8;
+            bytes.push((value >>> bits) & 0xff);
+        }
+    }
+
+    if (bytes.length === 0) {
+        throw new Error(
+            "Invalid ZENFEED_WEB_TOTP_SECRET. Decoded secret is empty.",
+        );
+    }
+
+    return Buffer.from(bytes);
+}
+
+let cachedNormalizedTotpSecret: string | null = null;
+let cachedTotpSecretBytes: Buffer | null = null;
+
+function getTotpSecretBytes(): Buffer {
+    const normalizedTotpSecret = normalizeBase32Secret(requireTotpSecret());
+    if (
+        cachedTotpSecretBytes &&
+        cachedNormalizedTotpSecret === normalizedTotpSecret
+    ) {
+        return cachedTotpSecretBytes;
+    }
+
+    const totpSecretBytes = decodeBase32(normalizedTotpSecret);
+    cachedNormalizedTotpSecret = normalizedTotpSecret;
+    cachedTotpSecretBytes = totpSecretBytes;
+
+    return totpSecretBytes;
+}
+
+export function getWebAccessSessionMaxAgeSeconds(): number {
+    return parseSessionMaxAgeSeconds();
+}
 
 function toBase64URL(input: Buffer | string): string {
     const b = Buffer.isBuffer(input) ? input : Buffer.from(input, "utf8");
@@ -22,7 +124,13 @@ function fromBase64URL(input: string): Buffer {
     return Buffer.from(normalized, "base64");
 }
 
-function sign(payloadB64: string, secret: string): string {
+function getCookieSigningSecret(): Buffer {
+    return createHmac("sha256", getTotpSecretBytes())
+        .update("zenfeed-web-cookie-signing-secret")
+        .digest();
+}
+
+function sign(payloadB64: string, secret: Buffer | string): string {
     const mac = createHmac("sha256", secret);
     mac.update(payloadB64);
 
@@ -30,7 +138,7 @@ function sign(payloadB64: string, secret: string): string {
 }
 
 export function buildWebAccessCookieValue(
-    secret: string,
+    secret: Buffer | string,
     nowUnix: number,
     maxAgeSeconds: number,
 ): string {
@@ -47,7 +155,7 @@ export function buildWebAccessCookieValue(
 
 export function isWebAccessCookieValid(
     cookieValue: string | undefined,
-    secret: string,
+    secret: Buffer | string,
     nowUnix: number,
 ): boolean {
     if (!cookieValue || !secret) {
@@ -86,4 +194,49 @@ export function isWebAccessCookieValid(
     }
 
     return payload.exp > nowUnix;
+}
+
+export function getWebAccessCookieSecret(): Buffer {
+    return getCookieSigningSecret();
+}
+
+function generateTotpCodeForCounter(counter: number): string {
+    const counterBuffer = Buffer.alloc(8);
+    counterBuffer.writeBigUInt64BE(BigInt(counter));
+
+    const digest = createHmac("sha1", getTotpSecretBytes())
+        .update(counterBuffer)
+        .digest();
+    const offset = digest[digest.length - 1] & 0x0f;
+    const binary =
+        ((digest[offset] & 0x7f) << 24) |
+        ((digest[offset + 1] & 0xff) << 16) |
+        ((digest[offset + 2] & 0xff) << 8) |
+        (digest[offset + 3] & 0xff);
+
+    return (binary % 10 ** totpDigits)
+        .toString()
+        .padStart(totpDigits, "0");
+}
+
+export function verifyWebAccessTotpCode(
+    code: string,
+    nowUnix: number,
+): boolean {
+    const normalized = code.trim().replace(/\s+/g, "");
+    if (!/^\d{6}$/.test(normalized)) {
+        return false;
+    }
+
+    const counter = Math.floor(nowUnix / totpStepSeconds);
+    for (let offset = -totpWindow; offset <= totpWindow; offset += 1) {
+        const candidate = generateTotpCodeForCounter(counter + offset);
+        const left = Buffer.from(normalized, "utf8");
+        const right = Buffer.from(candidate, "utf8");
+        if (timingSafeEqual(left, right)) {
+            return true;
+        }
+    }
+
+    return false;
 }

@@ -172,13 +172,16 @@
   },
   "webAuth": {
     "title": "Website Locked",
-    "description": "Enter the password to access this website.",
-    "passwordLabel": "Password",
-    "passwordPlaceholder": "Enter password",
+    "description": "Enter the 6-digit code from your authenticator app to access this website.",
+    "codeLabel": "6-digit code",
+    "codePlaceholder": "Enter 6-digit code",
     "unlock": "Unlock",
     "unlocking": "Unlocking...",
-    "invalidPassword": "Invalid password. Please try again.",
-    "unlockFailed": "Failed to unlock. Please try again later."
+    "invalidCode": "Invalid code. Please try again.",
+    "unlockFailed": "Failed to unlock. Please try again later.",
+    "logout": "Log out",
+    "loggingOut": "Logging out...",
+    "logoutFailed": "Failed to log out. Please try again later."
   },
   "announcement": {
     "known": "I know"

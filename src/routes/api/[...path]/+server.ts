@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types';
 import { env } from '$env/dynamic/public';
 import { env as privateEnv } from '$env/dynamic/private';
 import {
+    getWebAccessCookieSecret,
     isWebAccessCookieValid,
     webAccessCookieName,
 } from '$lib/server/advancedAuth';
@@ -10,10 +11,6 @@ import {
 const disableApiProxyQueryConfig = env.PUBLIC_DISABLE_API_PROXY_QUERY_CONFIG === "true";
 const disableApiProxyApplyConfig = env.PUBLIC_DISABLE_API_PROXY_APPLY_CONFIG === "true";
 const protectedApiAuthToken = privateEnv.ZENFEED_API_AUTH_TOKEN || "";
-const webAccessPassword =
-    privateEnv.ZENFEED_WEB_ACCESS_PASSWORD || "";
-const webAccessSecret =
-    privateEnv.ZENFEED_WEB_ACCESS_SECRET || webAccessPassword;
 const allowedBackendListRaw =
     privateEnv.ZENFEED_ALLOWED_BACKEND_URLS || "localhost,127.0.0.1,zenfeed";
 
@@ -98,7 +95,6 @@ const handler: RequestHandler = async (event) => {
     const endpointPath = params.path;
     const isProtectedConfigEndpoint =
         endpointPath === "query_config" || endpointPath === "apply_config";
-    const needsWebAccessUnlock = webAccessPassword !== "";
 
     if (disableApiProxyQueryConfig && endpointPath.startsWith('query_config')) {
         throw skError(404, 'Not Found: Query config endpoint is disabled.');
@@ -110,14 +106,11 @@ const handler: RequestHandler = async (event) => {
     if (endpointPath.startsWith("web-auth")) {
         throw skError(404, "Not Found");
     }
-    if (
-        needsWebAccessUnlock &&
-        !isWebAccessCookieValid(
-            cookies.get(webAccessCookieName),
-            webAccessSecret,
-            Math.floor(Date.now() / 1000),
-        )
-    ) {
+    if (!isWebAccessCookieValid(
+        cookies.get(webAccessCookieName),
+        getWebAccessCookieSecret(),
+        Math.floor(Date.now() / 1000),
+    )) {
         throw skError(403, "Forbidden: Web access is locked.");
     }
 

@@ -30,8 +30,9 @@
     let webAccessStatusLoading = $state(true);
     let webAccessRequired = $state(false);
     let webAccessUnlocked = $state(false);
-    let webAccessPassword = $state("");
+    let webAccessCode = $state("");
     let webAccessLoading = $state(false);
+    let webAccessLogoutLoading = $state(false);
     let webAccessError = $state<string | null>(null);
 
     onMount(() => {
@@ -79,20 +80,42 @@
                 headers: {
                     "Content-Type": "application/json",
                 },
-                body: JSON.stringify({ password: webAccessPassword }),
+                body: JSON.stringify({ code: webAccessCode }),
             });
             if (!response.ok) {
-                webAccessError = $_("webAuth.invalidPassword");
+                webAccessError = $_("webAuth.invalidCode");
                 return;
             }
 
             webAccessUnlocked = true;
-            webAccessPassword = "";
+            webAccessCode = "";
         } catch (error) {
             console.error("Failed to unlock web access:", error);
             webAccessError = $_("webAuth.unlockFailed");
         } finally {
             webAccessLoading = false;
+        }
+    }
+
+    async function logoutWebAccess() {
+        webAccessLogoutLoading = true;
+        webAccessError = null;
+        try {
+            const response = await fetch("/api/web-auth", {
+                method: "DELETE",
+            });
+            if (!response.ok) {
+                webAccessError = $_("webAuth.logoutFailed");
+                return;
+            }
+
+            webAccessUnlocked = false;
+            webAccessCode = "";
+        } catch (error) {
+            console.error("Failed to logout web access:", error);
+            webAccessError = $_("webAuth.logoutFailed");
+        } finally {
+            webAccessLogoutLoading = false;
         }
     }
 
@@ -121,15 +144,19 @@
             <div class="card-body">
                 <h2 class="card-title">{$_("webAuth.title")}</h2>
                 <p class="text-sm text-base-content/70">{$_("webAuth.description")}</p>
-                <label class="label" for="webAuthPasswordInput">
-                    <span class="label-text">{$_("webAuth.passwordLabel")}</span>
+                <label class="label" for="webAuthCodeInput">
+                    <span class="label-text">{$_("webAuth.codeLabel")}</span>
                 </label>
                 <input
-                    id="webAuthPasswordInput"
-                    type="password"
+                    id="webAuthCodeInput"
+                    type="text"
+                    inputmode="numeric"
+                    autocomplete="one-time-code"
+                    pattern="[0-9]*"
+                    maxlength="6"
                     class="input input-bordered w-full"
-                    bind:value={webAccessPassword}
-                    placeholder={$_("webAuth.passwordPlaceholder")}
+                    bind:value={webAccessCode}
+                    placeholder={$_("webAuth.codePlaceholder")}
                     onkeypress={(e) => e.key === "Enter" && !webAccessLoading && void unlockWebAccess()}
                 />
                 {#if webAccessError}
@@ -140,7 +167,7 @@
                 <div class="card-actions justify-end mt-2">
                     <button
                         class="btn btn-primary"
-                        disabled={webAccessLoading || webAccessPassword.trim() === ""}
+                        disabled={webAccessLoading || webAccessCode.trim() === ""}
                         onclick={() => void unlockWebAccess()}
                     >
                         {#if webAccessLoading}
@@ -266,6 +293,18 @@
                         d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
                     />
                 </svg>
+            </button>
+            <button
+                class="btn btn-ghost btn-sm ml-2"
+                disabled={webAccessLogoutLoading}
+                onclick={() => void logoutWebAccess()}
+            >
+                {#if webAccessLogoutLoading}
+                    <span class="loading loading-spinner loading-xs"></span>
+                    {$_("webAuth.loggingOut")}
+                {:else}
+                    {$_("webAuth.logout")}
+                {/if}
             </button>
         </div>
     </div>

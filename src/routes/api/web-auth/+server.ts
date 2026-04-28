@@ -1,67 +1,46 @@
-import { env as privateEnv } from "$env/dynamic/private";
 import { json } from "@sveltejs/kit";
-import { timingSafeEqual } from "crypto";
 import {
     buildWebAccessCookieValue,
+    getWebAccessCookieSecret,
+    getWebAccessSessionMaxAgeSeconds,
     isWebAccessCookieValid,
+    verifyWebAccessTotpCode,
     webAccessCookieName,
 } from "$lib/server/advancedAuth";
 import type { RequestHandler } from "./$types";
 
-const webAccessPassword =
-    privateEnv.ZENFEED_WEB_ACCESS_PASSWORD || "";
-const webAccessAuthSecret =
-    privateEnv.ZENFEED_WEB_ACCESS_SECRET || webAccessPassword;
-const cookieMaxAgeSeconds = 8 * 60 * 60;
-
-function equalInConstantTime(a: string, b: string): boolean {
-    const left = Buffer.from(a, "utf8");
-    const right = Buffer.from(b, "utf8");
-    if (left.length !== right.length) {
-        return false;
-    }
-
-    return timingSafeEqual(left, right);
-}
-
 export const GET: RequestHandler = async ({ cookies }) => {
-    const required = webAccessPassword !== "";
-    const unlocked =
-        !required ||
-        isWebAccessCookieValid(
-            cookies.get(webAccessCookieName),
-            webAccessAuthSecret,
-            Math.floor(Date.now() / 1000),
-        );
+    const unlocked = isWebAccessCookieValid(
+        cookies.get(webAccessCookieName),
+        getWebAccessCookieSecret(),
+        Math.floor(Date.now() / 1000),
+    );
 
-    return json({ required, unlocked });
+    return json({ required: true, unlocked });
 };
 
 export const POST: RequestHandler = async ({ request, cookies, url }) => {
-    if (webAccessPassword === "") {
-        return json({ ok: true, required: false, unlocked: true });
-    }
-
-    let password = "";
+    let code = "";
     try {
         const body = await request.json();
-        password = typeof body?.password === "string" ? body.password : "";
+        code = typeof body?.code === "string" ? body.code : "";
     } catch {
-        password = "";
+        code = "";
     }
 
-    if (!equalInConstantTime(password, webAccessPassword)) {
+    if (!verifyWebAccessTotpCode(code, Math.floor(Date.now() / 1000))) {
         return json(
-            { ok: false, message: "invalid password" },
+            { ok: false, message: "invalid code" },
             { status: 401 },
         );
     }
 
+    const sessionMaxAgeSeconds = getWebAccessSessionMaxAgeSeconds();
     const nowUnix = Math.floor(Date.now() / 1000);
     const cookieValue = buildWebAccessCookieValue(
-        webAccessAuthSecret,
+        getWebAccessCookieSecret(),
         nowUnix,
-        cookieMaxAgeSeconds,
+        sessionMaxAgeSeconds,
     );
 
     cookies.set(webAccessCookieName, cookieValue, {
@@ -69,7 +48,7 @@ export const POST: RequestHandler = async ({ request, cookies, url }) => {
         httpOnly: true,
         sameSite: "lax",
         secure: url.protocol === "https:",
-        maxAge: cookieMaxAgeSeconds,
+        maxAge: sessionMaxAgeSeconds,
     });
 
     return json({ ok: true, required: true, unlocked: true });
