@@ -15,6 +15,7 @@
 
     interface ScrapeSource {
         name: string;
+        max_items_per_scrape?: number;
         rss?: {
             url?: string;
             rsshub_route_path?: string;
