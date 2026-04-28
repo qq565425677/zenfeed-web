@@ -1,9 +1,11 @@
 import { error as skError } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { env } from '$env/dynamic/public';
+import { env as privateEnv } from '$env/dynamic/private';
 
 const disableApiProxyQueryConfig = env.PUBLIC_DISABLE_API_PROXY_QUERY_CONFIG === "true";
 const disableApiProxyApplyConfig = env.PUBLIC_DISABLE_API_PROXY_APPLY_CONFIG === "true";
+const protectedApiAuthToken = privateEnv.ZENFEED_API_AUTH_TOKEN || "";
 
 // This handler will attempt to proxy requests for any method (GET, POST, etc.)
 const handler: RequestHandler = async (event) => {
@@ -24,6 +26,8 @@ const handler: RequestHandler = async (event) => {
 
     // `params.path` will contain the matched path segments after /api/
     const endpointPath = params.path;
+    const isProtectedConfigEndpoint =
+        endpointPath === "query_config" || endpointPath === "apply_config";
 
     if (disableApiProxyQueryConfig && endpointPath.startsWith('query_config')) {
         throw skError(404, 'Not Found: Query config endpoint is disabled.');
@@ -38,13 +42,18 @@ const handler: RequestHandler = async (event) => {
     console.log(`Proxying ${request.method} request for /api/${endpointPath} to: ${targetUrl}`); // Optional: server-side logging
 
     try {
+        const forwardHeaders: HeadersInit = {
+            'Content-Type': request.headers.get('Content-Type') || '',
+            'Accept': request.headers.get('Accept') || '*/*',
+        };
+        if (isProtectedConfigEndpoint && protectedApiAuthToken) {
+            forwardHeaders['Authorization'] = `Bearer ${protectedApiAuthToken}`;
+        }
+
         // Forward the request to the backend
         const response = await fetch(targetUrl, {
             method: request.method,
-            headers: {
-                'Content-Type': request.headers.get('Content-Type') || '',
-                'Accept': request.headers.get('Accept') || '*/*',
-            },
+            headers: forwardHeaders,
             body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : null,
             duplex: 'half'
         } as RequestInit);
@@ -71,4 +80,3 @@ export const POST = handler;
 export const PUT = handler;
 export const DELETE = handler;
 export const PATCH = handler;
-

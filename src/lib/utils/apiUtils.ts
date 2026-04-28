@@ -31,21 +31,20 @@ function isApiUrlLocalhost(url: string | null): boolean {
  */
 export function getTargetApiUrl(endpointPath: string): string {
     const actualBackendUrl = get(apiUrl); // Get the current configured backend URL
+    const cleanEndpointPath = endpointPath.startsWith('/') ? endpointPath : `/${endpointPath}`;
+    const isProtectedConfigEndpoint =
+        cleanEndpointPath === '/query_config' || cleanEndpointPath === '/apply_config';
 
     // Use proxy if NOT on browser OR if the API URL is not localhost
-    const useProxy = !browser || !isApiUrlLocalhost(actualBackendUrl);
+    const useProxy = !browser || !isApiUrlLocalhost(actualBackendUrl) || isProtectedConfigEndpoint;
 
     let targetUrl: string;
 
     if (useProxy) {
-        // Ensure endpointPath starts with a slash, but the final path doesn't have double slashes
-        const cleanEndpointPath = endpointPath.startsWith('/') ? endpointPath : `/${endpointPath}`;
         // Append the actual backend URL as a query parameter for the server-side proxy
         targetUrl = `/api${cleanEndpointPath}?backendUrl=${encodeURIComponent(actualBackendUrl)}`;
     } else {
         // Use the direct backend URL (only happens in browser when target is localhost)
-        // Ensure endpointPath starts with a slash
-        const cleanEndpointPath = endpointPath.startsWith('/') ? endpointPath : `/${endpointPath}`;
         targetUrl = `${actualBackendUrl}${cleanEndpointPath}`;
     }
 
