@@ -125,6 +125,8 @@
     "selectFeedHint": "内容将在此处显示。",
     "noItemsInGroup": "此分组下暂无未读项目。",
     "noSummaryAvailable": "此项目无可用摘要。",
+    "contentOriginOverview": "概览",
+    "contentOriginFull": "全文",
     "shareButton": "分享",
     "shareTooltip": "复制卡片为图片",
     "copyStatusCopying": "复制中...",

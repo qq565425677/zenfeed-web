@@ -6,6 +6,7 @@ interface SelectedFeedData {
     tags: string;
     summaryHtmlSnippet: string;
     link: string;
+    contentOrigin?: string;
 }
 
 interface FeedLabels { // TODO: refactor.....
@@ -28,4 +29,3 @@ interface QueryResponse {
 export const selectedFeedStore = writable<SelectedFeedData | null>(null);
 
 export const queryFeedsStore = writable<QueryResponse | null>(null);
-

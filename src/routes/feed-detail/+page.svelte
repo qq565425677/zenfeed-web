@@ -37,6 +37,17 @@
     let autoSlideDuration = 300; // Auto slide animation duration (ms)
     let feedContainer: HTMLElement;
 
+    function contentOriginBadge(origin?: string): string {
+        switch (origin) {
+            case "full":
+                return $_("past24h.contentOriginFull");
+            case "overview":
+                return $_("past24h.contentOriginOverview");
+            default:
+                return "";
+        }
+    }
+
     // Function to check if next feed exists
     $: hasNextFeed = currentFeedIndex < feedsList.length - 1;
 
@@ -290,6 +301,7 @@
             title: targetFeed.labels.title || $_("past24h.untitledFeed"), // Use translated fallback
             summaryHtmlSnippet: targetFeed.labels.summary_html_snippet || "",
             link: targetFeed.labels.link,
+            contentOrigin: targetFeed.labels.content_origin,
         };
 
         // Update stores and session storage
@@ -416,13 +428,22 @@
                         <div class="flex justify-between items-center mb-4">
                             <!-- Tags section -->
                             <div>
-                                {#if feedData.tags && feedData.tags.trim() !== ""}
+                                {#if (feedData.tags && feedData.tags.trim() !== "") || contentOriginBadge(feedData.contentOrigin)}
                                     <div style="font-size:14px; color:#5f6368;">
-                                        <span
-                                            style="display:inline-block; background-color:rgba(241, 243, 244, 0.65); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); border: 1px solid rgba(255, 255, 255, 0.18); padding:4px 10px; border-radius:15px; color:#1a73e8; font-weight:500;"
-                                        >
-                                            {feedData.tags}
-                                        </span>
+                                        {#if feedData.tags && feedData.tags.trim() !== ""}
+                                            <span
+                                                style="display:inline-block; background-color:rgba(241, 243, 244, 0.65); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); border: 1px solid rgba(255, 255, 255, 0.18); padding:4px 10px; border-radius:15px; color:#1a73e8; font-weight:500; margin-right:5px;"
+                                            >
+                                                {feedData.tags}
+                                            </span>
+                                        {/if}
+                                        {#if contentOriginBadge(feedData.contentOrigin)}
+                                            <span
+                                                style="display:inline-block; background-color:rgba(241, 243, 244, 0.65); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); border: 1px solid rgba(255, 255, 255, 0.18); padding:4px 10px; border-radius:15px; color:#0f766e; font-weight:500;"
+                                            >
+                                                {contentOriginBadge(feedData.contentOrigin)}
+                                            </span>
+                                        {/if}
                                     </div>
                                 {/if}
                             </div>

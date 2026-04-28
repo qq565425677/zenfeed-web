@@ -125,6 +125,8 @@
     "selectFeedHint": "The content will be displayed here.",
     "noItemsInGroup": "No unread items in this group.",
     "noSummaryAvailable": "No summary available for this item.",
+    "contentOriginOverview": "Overview",
+    "contentOriginFull": "Full",
     "shareButton": "Share",
     "shareTooltip": "Copy card as image",
     "copyStatusCopying": "Copying...",

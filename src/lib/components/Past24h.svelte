@@ -185,6 +185,17 @@
   // Reactive variable for the right panel detail view HTML
   $: rightPanelHtml = selectedFeedDesktop?.labels?.summary_html_snippet ?? "";
 
+  function contentOriginBadge(origin?: string): string {
+    switch (origin) {
+      case "full":
+        return $_("past24h.contentOriginFull");
+      case "overview":
+        return $_("past24h.contentOriginOverview");
+      default:
+        return "";
+    }
+  }
+
   // NEW: Reset scroll position of the detail panel when the selected feed changes
   $: if (detailPanelContentElement && selectedFeedDesktop) {
     // Checking selectedFeedDesktop ensures this runs when a feed is selected
@@ -287,7 +298,8 @@
         if (
           labelKey === "link" ||
           labelKey === "title" ||
-          labelKey === "summary_html_snippet"
+          labelKey === "summary_html_snippet" ||
+          labelKey === "content_origin"
         )
           return;
         allLabels.add(labelKey);
@@ -478,6 +490,7 @@
       tags: feed.labels.tags || "",
       summaryHtmlSnippet: feed.labels.summary_html_snippet || "",
       link: feed.labels.link,
+      contentOrigin: feed.labels.content_origin,
     };
 
     selectedFeedStore.set(feedDetailData);
@@ -1186,13 +1199,22 @@
                   <!-- Container for Tags, Link and Share Button -->
                   <div class="flex items-center gap-4 mb-4">
                     <!-- Inserted Tags Section -->
-                    {#if selectedFeedDesktop.labels?.tags?.trim()}
+                    {#if selectedFeedDesktop.labels?.tags?.trim() || contentOriginBadge(selectedFeedDesktop.labels?.content_origin)}
                       <div style="font-size:14px; color:#5f6368;">
-                        <span
-                          style="display:inline-block; background-color:rgba(241, 243, 244, 0.65); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); border: 1px solid rgba(255, 255, 255, 0.18); padding:4px 10px; border-radius:15px; margin-right:5px; color:#1a73e8; font-weight:500;"
-                        >
-                          {selectedFeedDesktop.labels.tags}
-                        </span>
+                        {#if selectedFeedDesktop.labels?.tags?.trim()}
+                          <span
+                            style="display:inline-block; background-color:rgba(241, 243, 244, 0.65); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); border: 1px solid rgba(255, 255, 255, 0.18); padding:4px 10px; border-radius:15px; margin-right:5px; color:#1a73e8; font-weight:500;"
+                          >
+                            {selectedFeedDesktop.labels.tags}
+                          </span>
+                        {/if}
+                        {#if contentOriginBadge(selectedFeedDesktop.labels?.content_origin)}
+                          <span
+                            style="display:inline-block; background-color:rgba(241, 243, 244, 0.65); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); border: 1px solid rgba(255, 255, 255, 0.18); padding:4px 10px; border-radius:15px; color:#0f766e; font-weight:500;"
+                          >
+                            {contentOriginBadge(selectedFeedDesktop.labels?.content_origin)}
+                          </span>
+                        {/if}
                       </div>
                     {/if}
 
