@@ -27,12 +27,12 @@
     let activeTab = $state<AvailableTab>(availableTabs[0] || "past"); // Default to 'past' if array is somehow empty
     let showSettingsModal = $state(false);
     let showAnnouncement = $state(false);
-    let advancedAuthRequired = $state(false);
-    let advancedUnlocked = $state(false);
-    let showAdvancedAuthModal = $state(false);
-    let advancedPassword = $state("");
-    let advancedAuthLoading = $state(false);
-    let advancedAuthError = $state<string | null>(null);
+    let webAccessStatusLoading = $state(true);
+    let webAccessRequired = $state(false);
+    let webAccessUnlocked = $state(false);
+    let webAccessPassword = $state("");
+    let webAccessLoading = $state(false);
+    let webAccessError = $state<string | null>(null);
 
     onMount(() => {
         if (browser && announcementText) {
@@ -43,7 +43,7 @@
                 showAnnouncement = true;
             }
         }
-        void loadAdvancedAuthStatus();
+        void loadWebAccessStatus();
     });
 
     function dismissAnnouncement() {
@@ -53,52 +53,47 @@
         }
     }
 
-    async function loadAdvancedAuthStatus() {
+    async function loadWebAccessStatus() {
+        webAccessStatusLoading = true;
         try {
-            const response = await fetch("/api/advanced-auth");
+            const response = await fetch("/api/web-auth");
             if (!response.ok) {
                 return;
             }
             const data = await response.json();
-            advancedAuthRequired = Boolean(data?.required);
-            advancedUnlocked = Boolean(data?.unlocked);
+            webAccessRequired = Boolean(data?.required);
+            webAccessUnlocked = Boolean(data?.unlocked);
         } catch (error) {
-            console.error("Failed to fetch advanced auth status:", error);
+            console.error("Failed to fetch web auth status:", error);
+        } finally {
+            webAccessStatusLoading = false;
         }
     }
 
-    async function unlockAdvancedConfig() {
-        advancedAuthLoading = true;
-        advancedAuthError = null;
+    async function unlockWebAccess() {
+        webAccessLoading = true;
+        webAccessError = null;
         try {
-            const response = await fetch("/api/advanced-auth", {
+            const response = await fetch("/api/web-auth", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                 },
-                body: JSON.stringify({ password: advancedPassword }),
+                body: JSON.stringify({ password: webAccessPassword }),
             });
             if (!response.ok) {
-                advancedAuthError = $_("advancedAuth.invalidPassword");
+                webAccessError = $_("webAuth.invalidPassword");
                 return;
             }
 
-            advancedUnlocked = true;
-            showAdvancedAuthModal = false;
-            advancedPassword = "";
-            activeTab = "advanced";
+            webAccessUnlocked = true;
+            webAccessPassword = "";
         } catch (error) {
-            console.error("Failed to unlock advanced config:", error);
-            advancedAuthError = $_("advancedAuth.unlockFailed");
+            console.error("Failed to unlock web access:", error);
+            webAccessError = $_("webAuth.unlockFailed");
         } finally {
-            advancedAuthLoading = false;
+            webAccessLoading = false;
         }
-    }
-
-    function closeAdvancedAuthModal() {
-        showAdvancedAuthModal = false;
-        advancedPassword = "";
-        advancedAuthError = null;
     }
 
     function setActiveTab(tab: AvailableTab) {
@@ -109,11 +104,6 @@
         if (disableAdvancedConfig && tab === "advanced") {
             return;
         }
-        if (tab === "advanced" && advancedAuthRequired && !advancedUnlocked) {
-            showAdvancedAuthModal = true;
-            advancedAuthError = null;
-            return;
-        }
         // Check if the tab is generally available (covers edge cases)
         if (availableTabs.includes(tab)) {
             activeTab = tab;
@@ -121,6 +111,50 @@
     }
 </script>
 
+{#if webAccessStatusLoading}
+    <div class="min-h-screen flex items-center justify-center p-6">
+        <span class="loading loading-spinner loading-lg"></span>
+    </div>
+{:else if webAccessRequired && !webAccessUnlocked}
+    <div class="min-h-screen flex items-center justify-center p-6">
+        <div class="card bg-base-200 shadow-xl w-full max-w-md">
+            <div class="card-body">
+                <h2 class="card-title">{$_("webAuth.title")}</h2>
+                <p class="text-sm text-base-content/70">{$_("webAuth.description")}</p>
+                <label class="label" for="webAuthPasswordInput">
+                    <span class="label-text">{$_("webAuth.passwordLabel")}</span>
+                </label>
+                <input
+                    id="webAuthPasswordInput"
+                    type="password"
+                    class="input input-bordered w-full"
+                    bind:value={webAccessPassword}
+                    placeholder={$_("webAuth.passwordPlaceholder")}
+                    onkeypress={(e) => e.key === "Enter" && !webAccessLoading && void unlockWebAccess()}
+                />
+                {#if webAccessError}
+                    <div role="alert" class="alert alert-error mt-2">
+                        <span>{webAccessError}</span>
+                    </div>
+                {/if}
+                <div class="card-actions justify-end mt-2">
+                    <button
+                        class="btn btn-primary"
+                        disabled={webAccessLoading || webAccessPassword.trim() === ""}
+                        onclick={() => void unlockWebAccess()}
+                    >
+                        {#if webAccessLoading}
+                            <span class="loading loading-spinner loading-xs"></span>
+                            {$_("webAuth.unlocking")}
+                        {:else}
+                            {$_("webAuth.unlock")}
+                        {/if}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+{:else}
 <div class="container mx-auto p-4">
     {#if showAnnouncement && announcementText}
         <div role="alert" class="alert alert-info shadow-lg mb-4">
@@ -250,48 +284,4 @@
 {#if showSettingsModal}
     <SettingsModal bind:show={showSettingsModal} />
 {/if}
-
-{#if showAdvancedAuthModal}
-    <dialog class="modal modal-open modal-bottom sm:modal-middle" open={showAdvancedAuthModal}>
-        <div class="modal-box">
-            <h3 class="font-bold text-lg mb-4">{$_("advancedAuth.title")}</h3>
-            <p class="text-sm text-base-content/70 mb-4">{$_("advancedAuth.description")}</p>
-            <label class="label" for="advancedAuthPasswordInput">
-                <span class="label-text">{$_("advancedAuth.passwordLabel")}</span>
-            </label>
-            <input
-                id="advancedAuthPasswordInput"
-                type="password"
-                class="input input-bordered w-full"
-                bind:value={advancedPassword}
-                placeholder={$_("advancedAuth.passwordPlaceholder")}
-                onkeypress={(e) => e.key === "Enter" && !advancedAuthLoading && void unlockAdvancedConfig()}
-            />
-            {#if advancedAuthError}
-                <div role="alert" class="alert alert-error mt-4">
-                    <span>{advancedAuthError}</span>
-                </div>
-            {/if}
-            <div class="modal-action">
-                <button
-                    class="btn btn-primary"
-                    disabled={advancedAuthLoading || advancedPassword.trim() === ""}
-                    onclick={() => void unlockAdvancedConfig()}
-                >
-                    {#if advancedAuthLoading}
-                        <span class="loading loading-spinner loading-xs"></span>
-                        {$_("advancedAuth.unlocking")}
-                    {:else}
-                        {$_("advancedAuth.unlock")}
-                    {/if}
-                </button>
-                <button class="btn" disabled={advancedAuthLoading} onclick={closeAdvancedAuthModal}>
-                    {$_("advancedAuth.cancel")}
-                </button>
-            </div>
-        </div>
-        <form method="dialog" class="modal-backdrop">
-            <button onclick={closeAdvancedAuthModal}>close</button>
-        </form>
-    </dialog>
 {/if}

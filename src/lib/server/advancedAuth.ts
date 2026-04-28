@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "crypto";
 
-export const advancedUnlockCookieName = "zenfeed_advanced_unlocked";
-const advancedUnlockVersion = "v1";
+export const webAccessCookieName = "zenfeed_web_access";
+const webAccessTokenVersion = "v1";
 
 function toBase64URL(input: Buffer | string): string {
     const b = Buffer.isBuffer(input) ? input : Buffer.from(input, "utf8");
@@ -29,13 +29,13 @@ function sign(payloadB64: string, secret: string): string {
     return toBase64URL(mac.digest());
 }
 
-export function buildAdvancedUnlockCookieValue(
+export function buildWebAccessCookieValue(
     secret: string,
     nowUnix: number,
     maxAgeSeconds: number,
 ): string {
     const payload = {
-        v: advancedUnlockVersion,
+        v: webAccessTokenVersion,
         exp: nowUnix + maxAgeSeconds,
     };
     const payloadJSON = JSON.stringify(payload);
@@ -45,7 +45,7 @@ export function buildAdvancedUnlockCookieValue(
     return `${payloadB64}.${sigB64}`;
 }
 
-export function isAdvancedUnlockCookieValid(
+export function isWebAccessCookieValid(
     cookieValue: string | undefined,
     secret: string,
     nowUnix: number,
@@ -78,7 +78,7 @@ export function isAdvancedUnlockCookieValid(
         return false;
     }
 
-    if (payload?.v !== advancedUnlockVersion) {
+    if (payload?.v !== webAccessTokenVersion) {
         return false;
     }
     if (typeof payload?.exp !== "number") {
@@ -87,4 +87,3 @@ export function isAdvancedUnlockCookieValid(
 
     return payload.exp > nowUnix;
 }
-

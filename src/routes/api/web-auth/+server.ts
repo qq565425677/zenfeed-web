@@ -2,15 +2,16 @@ import { env as privateEnv } from "$env/dynamic/private";
 import { json } from "@sveltejs/kit";
 import { timingSafeEqual } from "crypto";
 import {
-    advancedUnlockCookieName,
-    buildAdvancedUnlockCookieValue,
-    isAdvancedUnlockCookieValid,
+    buildWebAccessCookieValue,
+    isWebAccessCookieValid,
+    webAccessCookieName,
 } from "$lib/server/advancedAuth";
 import type { RequestHandler } from "./$types";
 
-const advancedConfigPassword = privateEnv.ZENFEED_ADVANCED_CONFIG_PASSWORD || "";
-const advancedAuthSecret =
-    privateEnv.ZENFEED_ADVANCED_AUTH_SECRET || advancedConfigPassword;
+const webAccessPassword =
+    privateEnv.ZENFEED_WEB_ACCESS_PASSWORD || "";
+const webAccessAuthSecret =
+    privateEnv.ZENFEED_WEB_ACCESS_SECRET || webAccessPassword;
 const cookieMaxAgeSeconds = 8 * 60 * 60;
 
 function equalInConstantTime(a: string, b: string): boolean {
@@ -24,12 +25,12 @@ function equalInConstantTime(a: string, b: string): boolean {
 }
 
 export const GET: RequestHandler = async ({ cookies }) => {
-    const required = advancedConfigPassword !== "";
+    const required = webAccessPassword !== "";
     const unlocked =
         !required ||
-        isAdvancedUnlockCookieValid(
-            cookies.get(advancedUnlockCookieName),
-            advancedAuthSecret,
+        isWebAccessCookieValid(
+            cookies.get(webAccessCookieName),
+            webAccessAuthSecret,
             Math.floor(Date.now() / 1000),
         );
 
@@ -37,7 +38,7 @@ export const GET: RequestHandler = async ({ cookies }) => {
 };
 
 export const POST: RequestHandler = async ({ request, cookies, url }) => {
-    if (advancedConfigPassword === "") {
+    if (webAccessPassword === "") {
         return json({ ok: true, required: false, unlocked: true });
     }
 
@@ -49,7 +50,7 @@ export const POST: RequestHandler = async ({ request, cookies, url }) => {
         password = "";
     }
 
-    if (!equalInConstantTime(password, advancedConfigPassword)) {
+    if (!equalInConstantTime(password, webAccessPassword)) {
         return json(
             { ok: false, message: "invalid password" },
             { status: 401 },
@@ -57,13 +58,13 @@ export const POST: RequestHandler = async ({ request, cookies, url }) => {
     }
 
     const nowUnix = Math.floor(Date.now() / 1000);
-    const cookieValue = buildAdvancedUnlockCookieValue(
-        advancedAuthSecret,
+    const cookieValue = buildWebAccessCookieValue(
+        webAccessAuthSecret,
         nowUnix,
         cookieMaxAgeSeconds,
     );
 
-    cookies.set(advancedUnlockCookieName, cookieValue, {
+    cookies.set(webAccessCookieName, cookieValue, {
         path: "/",
         httpOnly: true,
         sameSite: "lax",
@@ -75,7 +76,7 @@ export const POST: RequestHandler = async ({ request, cookies, url }) => {
 };
 
 export const DELETE: RequestHandler = async ({ cookies }) => {
-    cookies.delete(advancedUnlockCookieName, { path: "/" });
+    cookies.delete(webAccessCookieName, { path: "/" });
 
     return json({ ok: true });
 };

@@ -166,14 +166,13 @@
         "save": "保存",
         "cancel": "取消"
     },
-    "advancedAuth": {
-        "title": "高级配置已加锁",
-        "description": "请输入密码后才能查看和修改高级配置。",
+    "webAuth": {
+        "title": "网页已加锁",
+        "description": "请输入密码后才能使用此网页。",
         "passwordLabel": "访问密码",
         "passwordPlaceholder": "请输入密码",
         "unlock": "解锁",
         "unlocking": "解锁中...",
-        "cancel": "取消",
         "invalidPassword": "密码错误，请重试。",
         "unlockFailed": "解锁失败，请稍后重试。"
     },

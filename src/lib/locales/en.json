@@ -167,14 +167,13 @@
         "save": "Save",
         "cancel": "Cancel"
     },
-    "advancedAuth": {
-        "title": "Advanced Config Locked",
-        "description": "Enter the password to view and edit advanced configuration.",
+    "webAuth": {
+        "title": "Website Locked",
+        "description": "Enter the password to access this website.",
         "passwordLabel": "Password",
         "passwordPlaceholder": "Enter password",
         "unlock": "Unlock",
         "unlocking": "Unlocking...",
-        "cancel": "Cancel",
         "invalidPassword": "Invalid password. Please try again.",
         "unlockFailed": "Failed to unlock. Please try again later."
     },

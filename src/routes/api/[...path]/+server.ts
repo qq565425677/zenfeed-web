@@ -3,16 +3,17 @@ import type { RequestHandler } from './$types';
 import { env } from '$env/dynamic/public';
 import { env as privateEnv } from '$env/dynamic/private';
 import {
-    advancedUnlockCookieName,
-    isAdvancedUnlockCookieValid,
+    isWebAccessCookieValid,
+    webAccessCookieName,
 } from '$lib/server/advancedAuth';
 
 const disableApiProxyQueryConfig = env.PUBLIC_DISABLE_API_PROXY_QUERY_CONFIG === "true";
 const disableApiProxyApplyConfig = env.PUBLIC_DISABLE_API_PROXY_APPLY_CONFIG === "true";
 const protectedApiAuthToken = privateEnv.ZENFEED_API_AUTH_TOKEN || "";
-const advancedConfigPassword = privateEnv.ZENFEED_ADVANCED_CONFIG_PASSWORD || "";
-const advancedAuthSecret =
-    privateEnv.ZENFEED_ADVANCED_AUTH_SECRET || advancedConfigPassword;
+const webAccessPassword =
+    privateEnv.ZENFEED_WEB_ACCESS_PASSWORD || "";
+const webAccessSecret =
+    privateEnv.ZENFEED_WEB_ACCESS_SECRET || webAccessPassword;
 
 // This handler will attempt to proxy requests for any method (GET, POST, etc.)
 const handler: RequestHandler = async (event) => {
@@ -35,7 +36,7 @@ const handler: RequestHandler = async (event) => {
     const endpointPath = params.path;
     const isProtectedConfigEndpoint =
         endpointPath === "query_config" || endpointPath === "apply_config";
-    const needsAdvancedUnlock = advancedConfigPassword !== "" && isProtectedConfigEndpoint;
+    const needsWebAccessUnlock = webAccessPassword !== "";
 
     if (disableApiProxyQueryConfig && endpointPath.startsWith('query_config')) {
         throw skError(404, 'Not Found: Query config endpoint is disabled.');
@@ -44,15 +45,18 @@ const handler: RequestHandler = async (event) => {
     if (disableApiProxyApplyConfig && endpointPath.startsWith('apply_config')) {
         throw skError(404, 'Not Found: Apply config endpoint is disabled.');
     }
+    if (endpointPath.startsWith("web-auth")) {
+        throw skError(404, "Not Found");
+    }
     if (
-        needsAdvancedUnlock &&
-        !isAdvancedUnlockCookieValid(
-            cookies.get(advancedUnlockCookieName),
-            advancedAuthSecret,
+        needsWebAccessUnlock &&
+        !isWebAccessCookieValid(
+            cookies.get(webAccessCookieName),
+            webAccessSecret,
             Math.floor(Date.now() / 1000),
         )
     ) {
-        throw skError(403, "Forbidden: Advanced config is locked.");
+        throw skError(403, "Forbidden: Web access is locked.");
     }
 
     const targetUrl = `${backendUrl}/${endpointPath}`;
