@@ -18,6 +18,10 @@
         rss?: {
             url?: string;
             rsshub_route_path?: string;
+            detail?: {
+                link_regex?: string;
+                rsshub_route_path_template?: string;
+            };
         };
         ui_id?: string; // Client-side temporary ID
         isDuplicate?: boolean; // Client-side flag for preview
