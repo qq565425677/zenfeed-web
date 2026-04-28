@@ -74,6 +74,30 @@ function createAudioPlayerStore() {
                 isPlaying: !state.isPlaying,
             }));
         },
+        play: () => {
+            if (!browser) return;
+            update(state => ({
+                ...state,
+                isPlaying: true,
+            }));
+        },
+        pause: () => {
+            if (!browser) return;
+            update(state => ({
+                ...state,
+                isPlaying: false,
+            }));
+        },
+        syncPlaybackState: (isPlaying: boolean) => {
+            if (!browser) return;
+            update(state => {
+                if (state.isPlaying === isPlaying) return state;
+                return {
+                    ...state,
+                    isPlaying,
+                };
+            });
+        },
         playNext: () => {
             if (!browser) return;
             update(state => {

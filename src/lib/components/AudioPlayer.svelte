@@ -46,11 +46,11 @@
         });
 
         navigator.mediaSession.setActionHandler("play", () => {
-            state.togglePlayPause();
+            state.play();
         });
 
         navigator.mediaSession.setActionHandler("pause", () => {
-            state.togglePlayPause();
+            state.pause();
         });
 
         navigator.mediaSession.setActionHandler("previoustrack", () => {
@@ -244,6 +244,8 @@
 
 <audio
     bind:this={audio}
+    on:play={() => state.syncPlaybackState(true)}
+    on:pause={() => state.syncPlaybackState(false)}
     on:timeupdate={() =>
         audio && state.updateTime(audio.currentTime, audio.duration)}
     on:loadedmetadata={() =>
