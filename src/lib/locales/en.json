@@ -167,6 +167,17 @@
         "save": "Save",
         "cancel": "Cancel"
     },
+    "advancedAuth": {
+        "title": "Advanced Config Locked",
+        "description": "Enter the password to view and edit advanced configuration.",
+        "passwordLabel": "Password",
+        "passwordPlaceholder": "Enter password",
+        "unlock": "Unlock",
+        "unlocking": "Unlocking...",
+        "cancel": "Cancel",
+        "invalidPassword": "Invalid password. Please try again.",
+        "unlockFailed": "Failed to unlock. Please try again later."
+    },
     "announcement": {
         "known": "I know"
     },
