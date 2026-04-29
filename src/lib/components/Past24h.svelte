@@ -35,6 +35,16 @@
     [source: string]: FeedVO[];
   }
 
+  const NON_GROUPABLE_LABELS = new Set([
+    "link",
+    "title",
+    "content",
+    "pub_time",
+    "summary_html_snippet",
+    "content_origin",
+    "podcast_url",
+  ]);
+
   // --- Constants ---
   // const READ_ITEMS_STORAGE_KEY = "zenfeed_read_feeds"; // REMOVED: Handled by readStateStore
   const GROUP_BY_LABEL_STORAGE_KEY = "zenfeed_group_by_label";
@@ -289,34 +299,51 @@
     }
   }
 
+  function looksLikeStructuredBlob(value: string): boolean {
+    return (
+      value.length > 80 ||
+      value.includes("\n") ||
+      /https?:\/\//i.test(value) ||
+      /!\[[^\]]*\]\([^)]+\)|\[[^\]]+\]\([^)]+\)|<[^>]+>/.test(value)
+    );
+  }
+
+  function shouldOfferGroupByLabel(
+    labelKey: string,
+    valueCounts: Record<string, number> | undefined,
+    totalFeeds: number,
+  ): boolean {
+    if (labelKey === DEFAULT_GROUP_BY_LABEL) return true;
+    if (!valueCounts || NON_GROUPABLE_LABELS.has(labelKey)) return false;
+
+    const values = Object.keys(valueCounts);
+    if (values.length === 0) return false;
+    if (values.length < 2) return false;
+    if (!Object.values(valueCounts).some((count) => count > 1)) return false;
+    if (values.some((value) => looksLikeStructuredBlob(value))) return false;
+
+    return values.length <= Math.min(12, Math.ceil(totalFeeds / 2));
+  }
+
   function updateAvailableLabels(feeds: FeedVO[]) {
     const allLabels = new Set<string>([DEFAULT_GROUP_BY_LABEL]);
     const labelValueCounts: { [key: string]: { [value: string]: number } } = {};
 
     feeds.forEach((feed) => {
       Object.keys(feed.labels).forEach((labelKey) => {
-        if (
-          labelKey === "link" ||
-          labelKey === "title" ||
-          labelKey === "summary_html_snippet" ||
-          labelKey === "content_origin"
-        )
-          return;
+        if (NON_GROUPABLE_LABELS.has(labelKey)) return;
         allLabels.add(labelKey);
         const labelValue =
-          feed.labels[labelKey] || $_("past24h.uncategorizedGroup");
+          feed.labels[labelKey]?.trim() || $_("past24h.uncategorizedGroup");
         if (!labelValueCounts[labelKey]) labelValueCounts[labelKey] = {};
         labelValueCounts[labelKey][labelValue] =
           (labelValueCounts[labelKey][labelValue] || 0) + 1;
       });
     });
 
-    const usefulLabels = Array.from(allLabels).filter((labelKey) => {
-      if (labelKey === DEFAULT_GROUP_BY_LABEL) return true;
-      const counts = labelValueCounts[labelKey];
-      if (!counts) return false;
-      return Object.values(counts).some((count) => count > 1);
-    });
+    const usefulLabels = Array.from(allLabels).filter((labelKey) =>
+      shouldOfferGroupByLabel(labelKey, labelValueCounts[labelKey], feeds.length),
+    );
 
     availableGroupByLabels = usefulLabels.sort();
 
