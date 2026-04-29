@@ -270,11 +270,11 @@
       class="mx-auto w-full max-w-5xl px-3 pb-[calc(0.35rem+env(safe-area-inset-bottom))] pt-1.5 sm:px-4"
     >
       <div
-        class="zenfeed-player-surface pointer-events-auto rounded-[0.95rem] px-2.5 py-1.5 sm:px-3"
+        class="zenfeed-player-surface pointer-events-auto rounded-[0.95rem] px-2.5 py-3 sm:px-3"
       >
         <div class="flex items-center gap-2">
           <p
-            class="line-clamp-1 min-w-0 flex-1 text-[0.88rem] font-semibold leading-tight tracking-[-0.01em] text-slate-700 sm:text-[0.93rem]"
+            class="line-clamp-1 min-w-0 flex-1 text-[1rem] font-semibold leading-tight tracking-[-0.01em] text-slate-700"
             title={$state.currentTrack.title}
           >
             {$state.currentTrack.title}
@@ -305,7 +305,7 @@
 
         <media-player
           bind:this={player}
-          class="zenfeed-vidstack-player mt-1"
+          class="zenfeed-vidstack-player mt-0.5"
           src={$state.currentTrack.url}
           title={$state.currentTrack.title}
           viewType="audio"
@@ -328,9 +328,9 @@
           <media-outlet></media-outlet>
 
           <div class="zenfeed-player-frame">
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-1.5">
               <div
-                class="shrink-0 whitespace-nowrap text-[0.74rem] font-medium leading-none text-base-content/55 tabular-nums sm:text-[0.76rem]"
+                class="shrink-0 whitespace-nowrap text-[1rem] font-medium leading-none text-base-content/55 tabular-nums"
               >
                 {formatTime($state.currentTime)} / {formatTime($state.duration)}
               </div>
@@ -339,7 +339,7 @@
               ></media-time-slider>
             </div>
 
-            <div class="mt-1 flex items-center gap-1.25 overflow-x-auto">
+            <div class="mt-0.5 flex items-center gap-1.25 overflow-x-auto">
               <button
                 type="button"
                 class="zenfeed-icon-button"
@@ -554,8 +554,8 @@
 
   :global(.zenfeed-icon-button) {
     display: inline-flex;
-    height: 1.78rem;
-    width: 1.78rem;
+    height: 3rem;
+    width: 3rem;
     align-items: center;
     justify-content: center;
     border-radius: 9999px;
@@ -592,14 +592,14 @@
 
   :global(.zenfeed-pill-button) {
     display: inline-flex;
-    height: 1.72rem;
-    min-width: 2.3rem;
+    height: 2.8rem;
+    min-width: 3.2rem;
     align-items: center;
     justify-content: center;
     border-radius: 9999px;
     border: 1px solid color-mix(in oklab, var(--color-base-300) 55%, white);
-    padding: 0 0.68rem;
-    font-size: 0.76rem;
+    padding: 0 0.72rem;
+    font-size: 1rem;
     font-weight: 600;
     letter-spacing: -0.01em;
     transition:
@@ -649,8 +649,8 @@
 
   :global(.zenfeed-play-button) {
     display: inline-flex;
-    height: 1.9rem;
-    width: 1.9rem;
+    height: 3rem;
+    width: 3rem;
     align-items: center;
     justify-content: center;
     border-radius: 9999px;
@@ -687,7 +687,7 @@
   }
 
   :global(.zenfeed-vidstack-player media-time-slider [part~="track"]) {
-    height: 0.18rem;
+    height: 0.32rem;
     border-radius: 9999px;
   }
 
@@ -701,8 +701,8 @@
   }
 
   :global(.zenfeed-vidstack-player media-time-slider [part="thumb"]) {
-    width: 0.5rem;
-    height: 0.5rem;
+    width: 0.58rem;
+    height: 0.58rem;
   }
 
   @media (max-width: 639px) {
@@ -711,20 +711,20 @@
     }
 
     :global(.zenfeed-icon-button) {
-      height: 1.7rem;
-      width: 1.7rem;
+      height: 3rem;
+      width: 3rem;
     }
 
     :global(.zenfeed-pill-button) {
-      height: 1.64rem;
-      min-width: 2.2rem;
-      padding: 0 0.58rem;
-      font-size: 0.72rem;
+      height: 2.8rem;
+      min-width: 3.2rem;
+      padding: 0 0.72rem;
+      font-size: 1rem;
     }
 
     :global(.zenfeed-play-button) {
-      height: 1.82rem;
-      width: 1.82rem;
+      height: 3rem;
+      width: 3rem;
     }
   }
 </style>
