@@ -21,7 +21,13 @@
             rsshub_route_path?: string;
             detail?: {
                 link_regex?: string;
-                rsshub_route_path_template?: string;
+                rss?: {
+                    rsshub_route_path_template?: string;
+                };
+                crawl?: {
+                    type?: string;
+                    url_template?: string;
+                };
             };
         };
         ui_id?: string; // Client-side temporary ID
