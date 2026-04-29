@@ -1,6 +1,24 @@
 @import "tailwindcss";
+@import "vidstack/styles/defaults.css";
+@import "vidstack/styles/ui/buttons.css";
+@import "vidstack/styles/ui/sliders.css";
 @plugin "daisyui" {
-  themes: winter --default, night --prefersdark;
+  themes:
+    winter --default,
+    night --prefersdark;
+}
+
+:root {
+  --app-safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+html {
+  scrollbar-gutter: stable;
+}
+
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 @media (prefers-color-scheme: dark) {

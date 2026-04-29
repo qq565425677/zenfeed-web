@@ -342,7 +342,11 @@
     });
 
     const usefulLabels = Array.from(allLabels).filter((labelKey) =>
-      shouldOfferGroupByLabel(labelKey, labelValueCounts[labelKey], feeds.length),
+      shouldOfferGroupByLabel(
+        labelKey,
+        labelValueCounts[labelKey],
+        feeds.length,
+      ),
     );
 
     availableGroupByLabels = usefulLabels.sort();
@@ -832,14 +836,16 @@
 </script>
 
 <div
-  class="from-base-100 via-base-200/50 to-base-100 min-h-screen space-y-6 bg-gradient-to-br p-4 md:p-8 relative"
+  class="from-base-100 via-base-200/50 to-base-100 relative min-h-screen space-y-6 bg-gradient-to-br px-4 py-4 sm:px-6 sm:py-6 md:px-8"
 >
   <!-- Search Section -->
-  <div class="flex flex-wrap items-center gap-3 lg:flex-nowrap">
-    <div class="flex min-w-0 flex-1 flex-wrap items-center gap-3">
+  <div
+    class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between"
+  >
+    <div class="flex min-w-0 flex-1 flex-col gap-3">
       <!-- Group By Dropdown -->
       {#if availableGroupByLabels.length > 1 && !isLoading}
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
           <span class="text-sm font-medium text-base-content/80"
             >{$_("past24h.groupByLabel")}:</span
           >
@@ -907,45 +913,20 @@
 
       <!-- Search Input and Button -->
       {#if !disableSearchTerm}
-        <div class="flex min-w-0 flex-1 items-center gap-3">
+        <div class="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
           <input
             type="search"
             placeholder={$_("past24h.searchPlaceholder")}
-            class="input input-bordered input-primary focus:ring-primary focus:border-primary w-full max-w-lg rounded-lg px-4 py-2.5 text-base focus:ring-2 focus:outline-none"
+            class="input input-bordered input-primary focus:ring-primary focus:border-primary w-full max-w-none rounded-xl px-4 py-2.5 text-base focus:ring-2 focus:outline-none sm:max-w-xl"
             bind:value={searchTerm}
             on:keydown={handleKeydown}
             disabled={isLoading}
           />
-          <button
-            class="btn btn-primary rounded-lg"
-            on:click={handleSearch}
-            disabled={isLoading}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke-width="1.5"
-              stroke="currentColor"
-              class="h-5 w-5"
-              ><path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
-              /></svg
-            >
-            <span class="ml-1.5 hidden sm:inline"
-              >{$_("past24h.searchButton")}</span
-            >
-          </button>
-          {#if !isLoading && (searchTerm || (searchResults && Object.keys(groupedFeeds).length === 0 && !searchTerm))}
+          <div class="flex items-center gap-2 self-stretch sm:self-auto">
             <button
-              class="btn btn-ghost rounded-lg"
-              on:click={() => {
-                searchTerm = "";
-                handleSearch();
-              }}
-              title={$_("past24h.backButtonTitle")}
+              class="btn btn-primary flex-1 rounded-xl px-4 sm:flex-none sm:px-5"
+              on:click={handleSearch}
+              disabled={isLoading}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -957,21 +938,46 @@
                 ><path
                   stroke-linecap="round"
                   stroke-linejoin="round"
-                  d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3"
+                  d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
                 /></svg
               >
-              <span class="ml-1.5 hidden sm:inline"
-                >{$_("past24h.backButton")}</span
-              >
+              <span class="ml-1.5">{$_("past24h.searchButton")}</span>
             </button>
-          {/if}
+            {#if !isLoading && (searchTerm || (searchResults && Object.keys(groupedFeeds).length === 0 && !searchTerm))}
+              <button
+                class="btn btn-ghost rounded-xl border border-base-300/80 px-4"
+                on:click={() => {
+                  searchTerm = "";
+                  handleSearch();
+                }}
+                title={$_("past24h.backButtonTitle")}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke-width="1.5"
+                  stroke="currentColor"
+                  class="h-5 w-5"
+                  ><path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3"
+                  /></svg
+                >
+                <span class="ml-1.5">{$_("past24h.backButton")}</span>
+              </button>
+            {/if}
+          </div>
         </div>
       {/if}
     </div>
 
-    <div class="flex flex-wrap items-center gap-2 lg:ml-auto">
+    <div
+      class="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center xl:justify-end"
+    >
       <button
-        class="btn btn-sm btn-outline rounded-lg"
+        class="btn btn-sm btn-outline rounded-xl sm:w-auto"
         on:click={handleUndoLastRead}
         disabled={$readItemsStore.size === 0 || isLoading}
         title={$_("past24h.undoReadButton")}
@@ -979,7 +985,7 @@
         {$_("past24h.undoReadButton")}
       </button>
       <button
-        class="btn btn-sm btn-ghost rounded-lg text-base-content/70 hover:text-error"
+        class="btn btn-sm btn-ghost rounded-xl border border-base-300/70 text-base-content/70 hover:text-error sm:w-auto"
         on:click={handleClearReadItems}
         disabled={$readItemsStore.size === 0 || isLoading}
         title={$_("past24h.clearReadButton")}
@@ -989,7 +995,7 @@
       {#if !disableAddSource}
         <a
           href="/settings/sources"
-          class="btn btn-outline btn-primary btn-sm rounded-lg"
+          class="btn btn-outline btn-primary btn-sm rounded-xl sm:w-auto"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -1224,7 +1230,7 @@
                       $_("past24h.untitledFeed")}
                   </h2>
                   <!-- Container for Tags, Link and Share Button -->
-                  <div class="flex items-center gap-4 mb-4">
+                  <div class="mb-4 flex flex-wrap items-center gap-2.5">
                     <!-- Inserted Tags Section -->
                     {#if selectedFeedDesktop.labels?.tags?.trim() || contentOriginBadge(selectedFeedDesktop.labels?.content_origin)}
                       <div style="font-size:14px; color:#5f6368;">
@@ -1239,7 +1245,9 @@
                           <span
                             style="display:inline-block; background-color:rgba(241, 243, 244, 0.65); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); border: 1px solid rgba(255, 255, 255, 0.18); padding:4px 10px; border-radius:15px; color:#0f766e; font-weight:500;"
                           >
-                            {contentOriginBadge(selectedFeedDesktop.labels?.content_origin)}
+                            {contentOriginBadge(
+                              selectedFeedDesktop.labels?.content_origin,
+                            )}
                           </span>
                         {/if}
                       </div>
@@ -1413,20 +1421,20 @@
       </div>
 
       <!-- MOBILE: Card Grid Layout (fallback for md down) -->
-      <div class="grid grid-cols-1 gap-6 md:hidden">
+      <div class="grid grid-cols-1 gap-5 md:hidden">
         {#each sortedGroupEntries as [groupName, feeds] (groupName)}
           <div
-            class="card bg-base-100 border-base-300 rounded-xl border shadow-lg transition-all duration-300 hover:shadow-xl"
+            class="card border-base-300 rounded-2xl border bg-base-100 shadow-md transition-all duration-300 hover:shadow-lg"
           >
-            <div class="card-body p-5">
+            <div class="card-body gap-3 p-4 sm:p-5">
               <h2
-                class="card-title mb-3 truncate text-base font-semibold"
+                class="card-title truncate text-base font-semibold"
                 title={groupName}
               >
                 {groupName}
               </h2>
               <ul
-                class="list-none space-y-2.5 overflow-y-auto pr-1 text-sm"
+                class="list-none space-y-3 overflow-y-auto pr-1 text-sm"
                 style="max-height: 240px;"
               >
                 {#each feeds as feed (getFeedItemId(feed))}
@@ -1438,7 +1446,7 @@
                     <a
                       href={feed.labels.link}
                       rel="noopener noreferrer"
-                      class="text-primary hover:text-secondary break-words hover:underline"
+                      class="line-clamp-3 break-words leading-6 text-primary hover:text-secondary hover:underline"
                       on:click={(e) => handleFeedClickMobile(e, feed)}
                     >
                       {#if FEED_TITLE_PREFIX_LABEL && FEED_TITLE_PREFIX_LABEL !== selectedGroupByLabel && feed.labels[FEED_TITLE_PREFIX_LABEL]}
@@ -1476,7 +1484,7 @@
   <!-- Bottom Center Read Count: UPDATED to use store -->
   {#if $todayReadCountStore > 0 && !$audioPlayerStore.isPlayerVisible}
     <div
-      class="fixed bottom-5 left-1/2 transform -translate-x-1/2 z-40 px-4 py-2 rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 text-white shadow-lg backdrop-blur-sm flex items-center space-x-2 text-sm font-bold transition-all duration-300 ease-out select-none"
+      class="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 z-40 flex -translate-x-1/2 transform items-center space-x-2 rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 px-4 py-2 text-sm font-bold text-white shadow-lg backdrop-blur-sm transition-all duration-300 ease-out select-none"
       in:fly={{ y: 20, duration: 400, easing: cubicOut }}
     >
       <svg

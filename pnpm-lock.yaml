@@ -23,6 +23,9 @@ importers:
       svelte-i18n:
         specifier: ^4.0.1
         version: 4.0.1(svelte@5.55.5)
+      vidstack:
+        specifier: ^0.6.15
+        version: 0.6.15
     devDependencies:
       '@sveltejs/adapter-auto':
         specifier: ^4.0.0
@@ -783,6 +786,9 @@ packages:
   '@jridgewell/trace-mapping@0.3.9':
     resolution: {integrity: sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ==}
 
+  '@maverick-js/signals@5.11.5':
+    resolution: {integrity: sha512-/GO94awrwN9ROYZDMTeByordjvbhcm3CMvB/2aL/sEUy9Va8nM/2GmNgOOe+rrooTGnz8/DzO73xomuBRrnYWw==}
+
   '@polka/url@1.0.0-next.29':
     resolution: {integrity: sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww==}
 
@@ -1518,6 +1524,14 @@ packages:
     engines: {node: '>= 18'}
     hasBin: true
 
+  maverick.js@0.37.0:
+    resolution: {integrity: sha512-1Dk/9rienLiihlktVvH04ADC2UJTMflC1fOMVQCCaQAaz7hgzDI5i0p/arFbDM52hFFiIcq4RdXtYz47SgsLgw==}
+    engines: {node: '>=16'}
+
+  media-captions@0.0.18:
+    resolution: {integrity: sha512-JW18P6FuHdyLSGwC4TQ0kF3WdNj/+wMw2cKOb8BnmY6vSJGtnwJ+vkYj+IjHOV34j3XMc70HDeB/QYKR7E7fuQ==}
+    engines: {node: '>=16'}
+
   memoizee@0.4.17:
     resolution: {integrity: sha512-DGqD7Hjpi/1or4F/aYAspXKNm5Yili0QDAFAY4QYvpqpgiY6+1jOfqpmByzjxbWd/T9mChbCArXAbDAsTm5oXA==}
     engines: {node: '>=0.12'}
@@ -1795,6 +1809,10 @@ packages:
   tslib@2.8.1:
     resolution: {integrity: sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==}
 
+  type-fest@3.13.1:
+    resolution: {integrity: sha512-tLq3bSNx+xSpwvAJnzrK0Ep5CLNWjvFTOp71URMaAEWBfRb9nnJiBoUe0tF8bI4ZFO3omgBR6NvnbzVUT3Ly4g==}
+    engines: {node: '>=14.16'}
+
   type@2.7.3:
     resolution: {integrity: sha512-8j+1QmAbPvLZow5Qpi6NCaN8FB60p/6x8/vfNqOk/hC+HuvFZhL4+WfekuhQLiqFZXOgQdrs3B+XxEmCc6b3FQ==}
 
@@ -1815,6 +1833,10 @@ packages:
 
   util-deprecate@1.0.2:
     resolution: {integrity: sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw==}
+
+  vidstack@0.6.15:
+    resolution: {integrity: sha512-pI2aixBuOpu/LSnRgNJ40tU/KFW+x1X+O2bW1hz946ZZShDM5oqRXF9pavDOuckHAHPgUN9HYUr9vUNTBUPF1Q==}
+    engines: {node: '>=16'}
 
   vite@6.4.2:
     resolution: {integrity: sha512-2N/55r4JDJ4gdrCvGgINMy+HH3iRpNIz8K6SFwVsA+JbQScLiC+clmAxBgwiSPgcG9U15QmvqCGWzMbqda5zGQ==}
@@ -2333,6 +2355,8 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
+
+  '@maverick-js/signals@5.11.5': {}
 
   '@polka/url@1.0.0-next.29': {}
 
@@ -2990,6 +3014,13 @@ snapshots:
 
   marked@15.0.12: {}
 
+  maverick.js@0.37.0:
+    dependencies:
+      '@maverick-js/signals': 5.11.5
+      type-fest: 3.13.1
+
+  media-captions@0.0.18: {}
+
   memoizee@0.4.17:
     dependencies:
       d: 1.0.2
@@ -3263,6 +3294,8 @@ snapshots:
 
   tslib@2.8.1: {}
 
+  type-fest@3.13.1: {}
+
   type@2.7.3: {}
 
   typescript@5.9.3: {}
@@ -3276,6 +3309,12 @@ snapshots:
       pathe: 2.0.3
 
   util-deprecate@1.0.2: {}
+
+  vidstack@0.6.15:
+    dependencies:
+      maverick.js: 0.37.0
+      media-captions: 0.0.18
+      type-fest: 3.13.1
 
   vite@6.4.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.32.0):
     dependencies:

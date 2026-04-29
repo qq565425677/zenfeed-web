@@ -1,327 +1,341 @@
 <script lang="ts">
-    import { onMount } from "svelte";
-    import { browser } from "$app/environment";
-    import Past24h from "$lib/components/Past24h.svelte";
-    import Notifications from "$lib/components/Notifications.svelte";
-    import AdvancedConfig from "$lib/components/AdvancedConfig.svelte";
-    import SettingsModal from "$lib/components/SettingsModal.svelte";
-    import { _ } from "svelte-i18n"; // Import the translation function
-    import { env } from "$env/dynamic/public"; // Import env
+  import { onMount } from "svelte";
+  import { browser } from "$app/environment";
+  import Past24h from "$lib/components/Past24h.svelte";
+  import Notifications from "$lib/components/Notifications.svelte";
+  import AdvancedConfig from "$lib/components/AdvancedConfig.svelte";
+  import SettingsModal from "$lib/components/SettingsModal.svelte";
+  import { _ } from "svelte-i18n"; // Import the translation function
+  import { env } from "$env/dynamic/public"; // Import env
 
-    const disableNotifications = env.PUBLIC_DISABLE_NOTIFICATIONS === "true";
-    const disableAdvancedConfig = env.PUBLIC_DISABLE_ADVANCED_CONFIG === "true";
-    const announcementText = env.PUBLIC_ANNOUNCEMENT_TEXT || "";
-    const dismissedAnnouncementKey = "dismissedAnnouncementText";
+  const disableNotifications = env.PUBLIC_DISABLE_NOTIFICATIONS === "true";
+  const disableAdvancedConfig = env.PUBLIC_DISABLE_ADVANCED_CONFIG === "true";
+  const announcementText = env.PUBLIC_ANNOUNCEMENT_TEXT || "";
+  const dismissedAnnouncementKey = "dismissedAnnouncementText";
 
-    // Define available tabs based on env vars
-    type AvailableTab = "past" | "notifications" | "advanced";
-    let availableTabs: AvailableTab[] = ["past"];
-    if (!disableNotifications) {
-        availableTabs.push("notifications");
+  // Define available tabs based on env vars
+  type AvailableTab = "past" | "notifications" | "advanced";
+  let availableTabs: AvailableTab[] = ["past"];
+  if (!disableNotifications) {
+    availableTabs.push("notifications");
+  }
+  if (!disableAdvancedConfig) {
+    availableTabs.push("advanced");
+  }
+
+  // Set initial active tab to the first available one
+  let activeTab = $state<AvailableTab>(availableTabs[0] || "past"); // Default to 'past' if array is somehow empty
+  let showSettingsModal = $state(false);
+  let showAnnouncement = $state(false);
+  let webAccessStatusLoading = $state(true);
+  let webAccessRequired = $state(false);
+  let webAccessUnlocked = $state(false);
+  let webAccessCode = $state("");
+  let webAccessLoading = $state(false);
+  let webAccessLogoutLoading = $state(false);
+  let webAccessError = $state<string | null>(null);
+
+  onMount(() => {
+    if (browser && announcementText) {
+      const dismissedText = localStorage.getItem(dismissedAnnouncementKey);
+      if (announcementText !== dismissedText) {
+        showAnnouncement = true;
+      }
     }
-    if (!disableAdvancedConfig) {
-        availableTabs.push("advanced");
+    void loadWebAccessStatus();
+  });
+
+  function dismissAnnouncement() {
+    if (browser) {
+      showAnnouncement = false;
+      localStorage.setItem(dismissedAnnouncementKey, announcementText);
     }
+  }
 
-    // Set initial active tab to the first available one
-    let activeTab = $state<AvailableTab>(availableTabs[0] || "past"); // Default to 'past' if array is somehow empty
-    let showSettingsModal = $state(false);
-    let showAnnouncement = $state(false);
-    let webAccessStatusLoading = $state(true);
-    let webAccessRequired = $state(false);
-    let webAccessUnlocked = $state(false);
-    let webAccessCode = $state("");
-    let webAccessLoading = $state(false);
-    let webAccessLogoutLoading = $state(false);
-    let webAccessError = $state<string | null>(null);
-
-    onMount(() => {
-        if (browser && announcementText) {
-            const dismissedText = localStorage.getItem(
-                dismissedAnnouncementKey,
-            );
-            if (announcementText !== dismissedText) {
-                showAnnouncement = true;
-            }
-        }
-        void loadWebAccessStatus();
-    });
-
-    function dismissAnnouncement() {
-        if (browser) {
-            showAnnouncement = false;
-            localStorage.setItem(dismissedAnnouncementKey, announcementText);
-        }
+  async function loadWebAccessStatus() {
+    webAccessStatusLoading = true;
+    try {
+      const response = await fetch("/api/web-auth");
+      if (!response.ok) {
+        return;
+      }
+      const data = await response.json();
+      webAccessRequired = Boolean(data?.required);
+      webAccessUnlocked = Boolean(data?.unlocked);
+    } catch (error) {
+      console.error("Failed to fetch web auth status:", error);
+    } finally {
+      webAccessStatusLoading = false;
     }
+  }
 
-    async function loadWebAccessStatus() {
-        webAccessStatusLoading = true;
-        try {
-            const response = await fetch("/api/web-auth");
-            if (!response.ok) {
-                return;
-            }
-            const data = await response.json();
-            webAccessRequired = Boolean(data?.required);
-            webAccessUnlocked = Boolean(data?.unlocked);
-        } catch (error) {
-            console.error("Failed to fetch web auth status:", error);
-        } finally {
-            webAccessStatusLoading = false;
-        }
+  async function unlockWebAccess() {
+    webAccessLoading = true;
+    webAccessError = null;
+    try {
+      const response = await fetch("/api/web-auth", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ code: webAccessCode }),
+      });
+      if (!response.ok) {
+        webAccessError = $_("webAuth.invalidCode");
+        return;
+      }
+
+      webAccessUnlocked = true;
+      webAccessCode = "";
+    } catch (error) {
+      console.error("Failed to unlock web access:", error);
+      webAccessError = $_("webAuth.unlockFailed");
+    } finally {
+      webAccessLoading = false;
     }
+  }
 
-    async function unlockWebAccess() {
-        webAccessLoading = true;
-        webAccessError = null;
-        try {
-            const response = await fetch("/api/web-auth", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ code: webAccessCode }),
-            });
-            if (!response.ok) {
-                webAccessError = $_("webAuth.invalidCode");
-                return;
-            }
+  async function logoutWebAccess() {
+    webAccessLogoutLoading = true;
+    webAccessError = null;
+    try {
+      const response = await fetch("/api/web-auth", {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        webAccessError = $_("webAuth.logoutFailed");
+        return;
+      }
 
-            webAccessUnlocked = true;
-            webAccessCode = "";
-        } catch (error) {
-            console.error("Failed to unlock web access:", error);
-            webAccessError = $_("webAuth.unlockFailed");
-        } finally {
-            webAccessLoading = false;
-        }
+      webAccessUnlocked = false;
+      webAccessCode = "";
+    } catch (error) {
+      console.error("Failed to logout web access:", error);
+      webAccessError = $_("webAuth.logoutFailed");
+    } finally {
+      webAccessLogoutLoading = false;
     }
+  }
 
-    async function logoutWebAccess() {
-        webAccessLogoutLoading = true;
-        webAccessError = null;
-        try {
-            const response = await fetch("/api/web-auth", {
-                method: "DELETE",
-            });
-            if (!response.ok) {
-                webAccessError = $_("webAuth.logoutFailed");
-                return;
-            }
-
-            webAccessUnlocked = false;
-            webAccessCode = "";
-        } catch (error) {
-            console.error("Failed to logout web access:", error);
-            webAccessError = $_("webAuth.logoutFailed");
-        } finally {
-            webAccessLogoutLoading = false;
-        }
+  function setActiveTab(tab: AvailableTab) {
+    // Prevent setting to a disabled tab
+    if (disableNotifications && tab === "notifications") {
+      return;
     }
-
-    function setActiveTab(tab: AvailableTab) {
-        // Prevent setting to a disabled tab
-        if (disableNotifications && tab === "notifications") {
-            return;
-        }
-        if (disableAdvancedConfig && tab === "advanced") {
-            return;
-        }
-        // Check if the tab is generally available (covers edge cases)
-        if (availableTabs.includes(tab)) {
-            activeTab = tab;
-        }
+    if (disableAdvancedConfig && tab === "advanced") {
+      return;
     }
+    // Check if the tab is generally available (covers edge cases)
+    if (availableTabs.includes(tab)) {
+      activeTab = tab;
+    }
+  }
 </script>
 
 {#if webAccessStatusLoading}
-    <div class="min-h-screen flex items-center justify-center p-6">
-        <span class="loading loading-spinner loading-lg"></span>
-    </div>
+  <div class="min-h-screen flex items-center justify-center p-6">
+    <span class="loading loading-spinner loading-lg"></span>
+  </div>
 {:else if webAccessRequired && !webAccessUnlocked}
-    <div class="min-h-screen flex items-center justify-center p-6">
-        <div class="card bg-base-200 shadow-xl w-full max-w-md">
-            <div class="card-body">
-                <h2 class="card-title">{$_("webAuth.title")}</h2>
-                <p class="text-sm text-base-content/70">{$_("webAuth.description")}</p>
-                <label class="label" for="webAuthCodeInput">
-                    <span class="label-text">{$_("webAuth.codeLabel")}</span>
-                </label>
-                <input
-                    id="webAuthCodeInput"
-                    type="text"
-                    inputmode="numeric"
-                    autocomplete="one-time-code"
-                    pattern="[0-9]*"
-                    maxlength="6"
-                    class="input input-bordered w-full"
-                    bind:value={webAccessCode}
-                    placeholder={$_("webAuth.codePlaceholder")}
-                    onkeypress={(e) => e.key === "Enter" && !webAccessLoading && void unlockWebAccess()}
-                />
-                {#if webAccessError}
-                    <div role="alert" class="alert alert-error mt-2">
-                        <span>{webAccessError}</span>
-                    </div>
-                {/if}
-                <div class="card-actions justify-end mt-2">
-                    <button
-                        class="btn btn-primary"
-                        disabled={webAccessLoading || webAccessCode.trim() === ""}
-                        onclick={() => void unlockWebAccess()}
-                    >
-                        {#if webAccessLoading}
-                            <span class="loading loading-spinner loading-xs"></span>
-                            {$_("webAuth.unlocking")}
-                        {:else}
-                            {$_("webAuth.unlock")}
-                        {/if}
-                    </button>
-                </div>
-            </div>
+  <div class="min-h-screen flex items-center justify-center p-6">
+    <div class="card bg-base-200 shadow-xl w-full max-w-md">
+      <div class="card-body">
+        <h2 class="card-title">{$_("webAuth.title")}</h2>
+        <p class="text-sm text-base-content/70">{$_("webAuth.description")}</p>
+        <label class="label" for="webAuthCodeInput">
+          <span class="label-text">{$_("webAuth.codeLabel")}</span>
+        </label>
+        <input
+          id="webAuthCodeInput"
+          type="text"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          pattern="[0-9]*"
+          maxlength="6"
+          class="input input-bordered w-full"
+          bind:value={webAccessCode}
+          placeholder={$_("webAuth.codePlaceholder")}
+          onkeypress={(e) =>
+            e.key === "Enter" && !webAccessLoading && void unlockWebAccess()}
+        />
+        {#if webAccessError}
+          <div role="alert" class="alert alert-error mt-2">
+            <span>{webAccessError}</span>
+          </div>
+        {/if}
+        <div class="card-actions justify-end mt-2">
+          <button
+            class="btn btn-primary"
+            disabled={webAccessLoading || webAccessCode.trim() === ""}
+            onclick={() => void unlockWebAccess()}
+          >
+            {#if webAccessLoading}
+              <span class="loading loading-spinner loading-xs"></span>
+              {$_("webAuth.unlocking")}
+            {:else}
+              {$_("webAuth.unlock")}
+            {/if}
+          </button>
         </div>
+      </div>
     </div>
+  </div>
 {:else}
-<div class="container mx-auto p-4">
+  <div class="mx-auto max-w-7xl px-4 py-4 sm:px-6">
     {#if showAnnouncement && announcementText}
-        <div role="alert" class="alert alert-info shadow-lg mb-4">
-            <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                class="stroke-current shrink-0 w-6 h-6"
-            >
-                <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                ></path>
-            </svg>
-            {@html announcementText}
-            <button class="btn btn-sm btn-ghost" onclick={dismissAnnouncement}>
-                {$_("announcement.known")}
-            </button>
-        </div>
+      <div role="alert" class="alert alert-info shadow-lg mb-4">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          class="stroke-current shrink-0 w-6 h-6"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+          ></path>
+        </svg>
+        {@html announcementText}
+        <button class="btn btn-sm btn-ghost" onclick={dismissAnnouncement}>
+          {$_("announcement.known")}
+        </button>
+      </div>
     {/if}
 
-        <div role="tablist" class="tabs tabs-bordered mb-6 pl-8">
-            {#if availableTabs.includes("past")}
-	            <button
-	                type="button"
-	                role="tab"
-	                class="tab pl-4 {activeTab === 'past' ? 'tab-active' : ''}"
-	                onclick={() => setActiveTab("past")}
-	                tabindex={activeTab === "past" ? 0 : -1}
-	            >
-	                {$_("tabs.past24h")}
-	            </button>
-	        {/if}
-	        {#if !disableNotifications && availableTabs.includes("notifications")}
-	            <button
-	                type="button"
-	                role="tab"
-	                class="tab pl-4 {activeTab === 'notifications'
-	                    ? 'tab-active'
-	                    : ''}"
-	                onclick={() => setActiveTab("notifications")}
-	                tabindex={activeTab === "notifications" ? 0 : -1}
-	            >
-	                {$_("tabs.notifications")}
-	            </button>
-	        {/if}
-	        {#if !disableAdvancedConfig && availableTabs.includes("advanced")}
-	            <button
-	                type="button"
-	                role="tab"
-	                class="tab pl-4 {activeTab === 'advanced' ? 'tab-active' : ''}"
-	                onclick={() => setActiveTab("advanced")}
-	                tabindex={activeTab === "advanced" ? 0 : -1}
-	            >
-	                {$_("tabs.advancedConfig")}
-	            </button>
-	        {/if}
-        <div class="tab flex-grow justify-end">
-            <a
-                href="/wechat.png"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="btn btn-ghost btn-circle mr-2 tooltip tooltip-bottom"
-            >
-                <img src="/wechat.png" alt="WeChat Group" class="w-6 h-6" />
-            </a>
-            <a
-                href="https://github.com/glidea/zenfeed"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="btn btn-ghost btn-circle mr-2 tooltip tooltip-bottom"
-                data-tip={$_("nav.githubStarTooltip")}
-                aria-label={$_("nav.githubStarTooltip")}
-            >
-                <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 16 16"
-                    fill="currentColor"
-                    class="w-6 h-6"
-                >
-                    <path
-                        d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"
-                    />
-                </svg>
-            </a>
-            <button
-                type="button"
-                class="btn btn-ghost btn-circle"
-                aria-label={$_("settingsModal.title")}
-                onclick={() => (showSettingsModal = true)}
-            >
-                <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke-width="1.5"
-                    stroke="currentColor"
-                    class="w-6 h-6"
-                >
-                    <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.004.827c-.292.24-.437.613-.43.992a6.759 6.759 0 0 1 0 1.855c.007.378.138.75.43.99l1.005.828c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.333.183-.582.495-.645.869l-.213 1.28c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.759 6.759 0 0 1 0-1.855c-.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281Z"
-                    />
-                    <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
-                    />
-                </svg>
-            </button>
-            <button
-                class="btn btn-ghost btn-sm ml-2"
-                disabled={webAccessLogoutLoading}
-                onclick={() => void logoutWebAccess()}
-            >
-                {#if webAccessLogoutLoading}
-                    <span class="loading loading-spinner loading-xs"></span>
-                    {$_("webAuth.loggingOut")}
-                {:else}
-                    {$_("webAuth.logout")}
-                {/if}
-            </button>
-        </div>
+    <div
+      class="mb-5 flex flex-col gap-3 rounded-[1.5rem] border border-base-300/70 bg-base-100/85 p-3 shadow-sm backdrop-blur-sm sm:mb-6 sm:flex-row sm:items-center sm:justify-between sm:p-4"
+    >
+      <div role="tablist" class="flex flex-wrap items-center gap-2">
+        {#if availableTabs.includes("past")}
+          <button
+            type="button"
+            role="tab"
+            class={`btn btn-sm rounded-xl px-4 ${
+              activeTab === "past"
+                ? "btn-primary shadow-sm"
+                : "btn-ghost border border-base-300/80 bg-base-100 hover:border-base-300"
+            }`}
+            onclick={() => setActiveTab("past")}
+            tabindex={activeTab === "past" ? 0 : -1}
+          >
+            {$_("tabs.past24h")}
+          </button>
+        {/if}
+        {#if !disableNotifications && availableTabs.includes("notifications")}
+          <button
+            type="button"
+            role="tab"
+            class={`btn btn-sm rounded-xl px-4 ${
+              activeTab === "notifications"
+                ? "btn-primary shadow-sm"
+                : "btn-ghost border border-base-300/80 bg-base-100 hover:border-base-300"
+            }`}
+            onclick={() => setActiveTab("notifications")}
+            tabindex={activeTab === "notifications" ? 0 : -1}
+          >
+            {$_("tabs.notifications")}
+          </button>
+        {/if}
+        {#if !disableAdvancedConfig && availableTabs.includes("advanced")}
+          <button
+            type="button"
+            role="tab"
+            class={`btn btn-sm rounded-xl px-4 ${
+              activeTab === "advanced"
+                ? "btn-primary shadow-sm"
+                : "btn-ghost border border-base-300/80 bg-base-100 hover:border-base-300"
+            }`}
+            onclick={() => setActiveTab("advanced")}
+            tabindex={activeTab === "advanced" ? 0 : -1}
+          >
+            {$_("tabs.advancedConfig")}
+          </button>
+        {/if}
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2 sm:justify-end">
+        <a
+          href="/wechat.png"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="btn btn-ghost btn-circle tooltip tooltip-bottom"
+        >
+          <img src="/wechat.png" alt="WeChat Group" class="w-6 h-6" />
+        </a>
+        <a
+          href="https://github.com/glidea/zenfeed"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="btn btn-ghost btn-circle tooltip tooltip-bottom"
+          data-tip={$_("nav.githubStarTooltip")}
+          aria-label={$_("nav.githubStarTooltip")}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            class="w-6 h-6"
+          >
+            <path
+              d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"
+            />
+          </svg>
+        </a>
+        <button
+          type="button"
+          class="btn btn-ghost btn-circle"
+          aria-label={$_("settingsModal.title")}
+          onclick={() => (showSettingsModal = true)}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke-width="1.5"
+            stroke="currentColor"
+            class="w-6 h-6"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.004.827c-.292.24-.437.613-.43.992a6.759 6.759 0 0 1 0 1.855c.007.378.138.75.43.99l1.005.828c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.333.183-.582.495-.645.869l-.213 1.28c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.759 6.759 0 0 1 0-1.855c-.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281Z"
+            />
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
+            />
+          </svg>
+        </button>
+        <button
+          class="btn btn-ghost btn-sm rounded-xl border border-base-300/80 px-3"
+          disabled={webAccessLogoutLoading}
+          onclick={() => void logoutWebAccess()}
+        >
+          {#if webAccessLogoutLoading}
+            <span class="loading loading-spinner loading-xs"></span>
+            {$_("webAuth.loggingOut")}
+          {:else}
+            {$_("webAuth.logout")}
+          {/if}
+        </button>
+      </div>
     </div>
 
     <div>
-        {#if activeTab === "past"}
-            <Past24h />
-        {:else if activeTab === "notifications" && !disableNotifications}
-            <Notifications />
-        {:else if activeTab === "advanced" && !disableAdvancedConfig}
-            <AdvancedConfig />
-        {/if}
+      {#if activeTab === "past"}
+        <Past24h />
+      {:else if activeTab === "notifications" && !disableNotifications}
+        <Notifications />
+      {:else if activeTab === "advanced" && !disableAdvancedConfig}
+        <AdvancedConfig />
+      {/if}
     </div>
-</div>
+  </div>
 
-{#if showSettingsModal}
+  {#if showSettingsModal}
     <SettingsModal bind:show={showSettingsModal} />
-{/if}
+  {/if}
 {/if}
