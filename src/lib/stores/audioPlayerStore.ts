@@ -154,8 +154,12 @@ function createAudioPlayerStore() {
     updateTime: (currentTime: number, duration: number) => {
       update((state) => ({
         ...state,
-        currentTime,
-        duration,
+        currentTime:
+          Number.isFinite(currentTime) && currentTime >= 0
+            ? currentTime
+            : state.currentTime,
+        duration:
+          Number.isFinite(duration) && duration > 0 ? duration : state.duration,
       }));
     },
     closePlayer: () => {

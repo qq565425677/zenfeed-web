@@ -41,7 +41,7 @@
   <!-- <div>Loading language...</div> -->
 {:else}
   <div
-    class={`transition-[padding] duration-300 ease-out ${$audioPlayerStore.isPlayerVisible ? "pb-[calc(13.5rem+env(safe-area-inset-bottom))] sm:pb-[calc(12rem+env(safe-area-inset-bottom))]" : ""}`}
+    class={`transition-[padding] duration-300 ease-out ${$audioPlayerStore.isPlayerVisible ? "pb-[calc(5.85rem+env(safe-area-inset-bottom))] sm:pb-[calc(4.9rem+env(safe-area-inset-bottom))]" : ""}`}
   >
     {@render children()}
   </div>
