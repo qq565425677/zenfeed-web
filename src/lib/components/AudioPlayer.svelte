@@ -1,6 +1,6 @@
 <script lang="ts">
   import { browser } from "$app/environment";
-  import { onDestroy, tick } from "svelte";
+  import { onDestroy, onMount, tick } from "svelte";
   import { slide } from "svelte/transition";
   import { audioPlayerStore } from "$lib/stores/audioPlayerStore";
 
@@ -30,6 +30,7 @@
   let isPlayerReadyForPlayback = false;
   let isScrubbing = false;
   let scrubTime = 0;
+  let hasOwnedMediaSession = false;
 
   $: currentTrackIndex = $state.currentTrack
     ? $state.playlist.findIndex((track) => track.id === $state.currentTrack?.id)
@@ -106,13 +107,25 @@
 
     if ($state.currentTrack) {
       syncMediaSessionState();
-    } else {
+    } else if (hasOwnedMediaSession) {
       clearMediaSession();
     }
   }
 
   onDestroy(() => {
-    clearMediaSession();
+    if (hasOwnedMediaSession) {
+      clearMediaSession();
+    }
+  });
+
+  onMount(() => {
+    if (!browser) return;
+
+    if (!customElements.get("media-player")) {
+      void import("vidstack/elements").then(({ defineCustomElements }) => {
+        defineCustomElements();
+      });
+    }
   });
 
   function safelyRunPlayerAction(
@@ -152,6 +165,8 @@
         // Some browsers do not support clearing every action.
       }
     }
+
+    hasOwnedMediaSession = false;
   }
 
   function syncMediaSessionState() {
@@ -159,6 +174,7 @@
       return;
     }
 
+    hasOwnedMediaSession = true;
     updateMediaSession();
     navigator.mediaSession.playbackState = $state.isPlaying
       ? "playing"

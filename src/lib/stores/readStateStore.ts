@@ -7,6 +7,20 @@ const READ_ITEMS_STORAGE_KEY = "zenfeed_read_feeds";
 // --- Private State ---
 let markAsReadSound: HTMLAudioElement | null = null;
 
+function getMarkAsReadSound(): HTMLAudioElement | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  if (!markAsReadSound) {
+    markAsReadSound = new Audio("/sounds/woodfish.mp3");
+    markAsReadSound.volume = 0.5;
+    markAsReadSound.preload = "none";
+  }
+
+  return markAsReadSound;
+}
+
 function persistReadItemsMap(readItemsMap: ReadItemsMap) {
   if (typeof window === "undefined" || typeof localStorage === "undefined") {
     return;
@@ -48,10 +62,6 @@ function createReadItemsStore() {
       localStorage.removeItem(READ_ITEMS_STORAGE_KEY); // Clear potentially corrupted data
     }
 
-    // Preload audio effect for marking as read
-    markAsReadSound = new Audio("/sounds/woodfish.mp3");
-    markAsReadSound.volume = 0.5;
-    markAsReadSound.load();
   }
 
   // --- Public API for the store ---
@@ -63,9 +73,10 @@ function createReadItemsStore() {
         // Only update if the item is not already marked as read
         if (!currentMap.has(itemId)) {
           // Play sound effect if available
-          if (markAsReadSound) {
-            markAsReadSound.currentTime = 0; // Reset playback position
-            markAsReadSound
+          const sound = getMarkAsReadSound();
+          if (sound) {
+            sound.currentTime = 0; // Reset playback position
+            sound
               .play()
               .catch((error) => console.warn("Audio playback failed:", error));
           }

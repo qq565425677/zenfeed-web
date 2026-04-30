@@ -13,9 +13,6 @@
   // Or you might simply rely on client-side detection via `initialLocale: getLocaleFromNavigator()` in i18n.ts
   if (browser) {
     locale.set(window.navigator.language || "en"); // Simple browser language detection
-    void import("vidstack/elements").then(({ defineCustomElements }) =>
-      defineCustomElements(),
-    );
   } else {
     // Handle server-side locale if necessary (e.g., from request headers)
     // For simplicity, we'll stick to the default/fallback for SSR here
@@ -45,7 +42,9 @@
   >
     {@render children()}
   </div>
-  <AudioPlayer />
+  {#if $audioPlayerStore.isPlayerVisible}
+    <AudioPlayer />
+  {/if}
 {/if}
 
 <style>
