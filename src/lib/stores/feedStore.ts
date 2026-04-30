@@ -20,12 +20,22 @@ interface FeedVO {
     id?: string;
 }
 
+export interface QueryRequest {
+    start: string;
+    end: string;
+    limit: number;
+    query: string;
+    summarize: boolean;
+}
+
 interface QueryResponse {
     summary: string;
     feeds: FeedVO[];
     count: number;
+    request?: QueryRequest;
 }
 
 export const selectedFeedStore = writable<SelectedFeedData | null>(null);
 
 export const queryFeedsStore = writable<QueryResponse | null>(null);
+export const lastQueryRequestStore = writable<QueryRequest | null>(null);

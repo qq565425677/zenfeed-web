@@ -51,6 +51,23 @@
   // Function to check if next feed exists
   $: hasNextFeed = currentFeedIndex < feedsList.length - 1;
 
+  $: if ($selectedFeedStore && $selectedFeedStore.id !== feedData?.id) {
+    feedData = $selectedFeedStore;
+  }
+
+  $: if (
+    $audioPlayerStore.isPlayerVisible &&
+    $audioPlayerStore.currentTrack &&
+    feedsList.length > 0
+  ) {
+    const playingTrackIndex = feedsList.findIndex(
+      (feed) => getFeedItemId(feed) === $audioPlayerStore.currentTrack?.id,
+    );
+    if (playingTrackIndex !== -1 && playingTrackIndex !== currentFeedIndex) {
+      navigateToFeed(playingTrackIndex);
+    }
+  }
+
   // Initialize and get all swipeable feeds
   onMount(async () => {
     // Handle direct navigation case: Load selected feed first

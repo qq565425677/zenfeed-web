@@ -1,6 +1,6 @@
 <script lang="ts">
   import { browser } from "$app/environment";
-  import { onDestroy } from "svelte";
+  import { onDestroy, tick } from "svelte";
   import { slide } from "svelte/transition";
   import { audioPlayerStore } from "$lib/stores/audioPlayerStore";
 
@@ -25,6 +25,8 @@
   let activePlaybackRate = 1;
   let lastAppliedTrackId = "";
   let lastAppliedPlaybackIntent: boolean | null = null;
+  let playbackSyncToken = 0;
+  let lastRetryTrackId = "";
 
   $: currentTrackIndex = $state.currentTrack
     ? $state.playlist.findIndex((track) => track.id === $state.currentTrack?.id)
@@ -42,12 +44,7 @@
     if (trackChanged || playbackIntentChanged) {
       lastAppliedTrackId = $state.currentTrack.id;
       lastAppliedPlaybackIntent = $state.isPlaying;
-
-      if ($state.isPlaying) {
-        safelyRunPlayerAction(player.play(), "Audio play failed:");
-      } else {
-        safelyRunPlayerAction(player.pause(), "Audio pause failed:");
-      }
+      void syncPlayerPlayback(trackChanged);
     }
   }
 
@@ -62,10 +59,7 @@
     }
   }
 
-  const unsubscribe = state.subscribe(() => {});
-
   onDestroy(() => {
-    unsubscribe();
     clearMediaSession();
   });
 
@@ -104,37 +98,80 @@
     }
   }
 
+  async function syncPlayerPlayback(trackChanged: boolean) {
+    const currentToken = ++playbackSyncToken;
+
+    if (trackChanged) {
+      await state.refreshPlaylistIfNeeded();
+      if (currentToken !== playbackSyncToken) return;
+      await tick();
+    }
+
+    if (!player || !$state.currentTrack || currentToken !== playbackSyncToken) {
+      return;
+    }
+
+    if ($state.isPlaying) {
+      safelyRunPlayerAction(player.play(), "Audio play failed:");
+      return;
+    }
+
+    safelyRunPlayerAction(player.pause(), "Audio pause failed:");
+  }
+
+  function setMediaSessionActionHandler(
+    action: MediaSessionAction,
+    handler: MediaSessionActionHandler | null,
+  ) {
+    try {
+      navigator.mediaSession.setActionHandler(action, handler);
+    } catch (error) {
+      console.debug(`Media session action "${action}" is not supported.`, error);
+    }
+  }
+
   function updateMediaSession() {
     if (!browser || !("mediaSession" in navigator) || !$state.currentTrack) {
       return;
     }
 
+    const trackSource = $state.currentTrack.feed.labels.source?.trim() || "";
+    const artwork = [
+      {
+        src: new URL("/icon.png", window.location.origin).toString(),
+        sizes: "512x512",
+        type: "image/png",
+      },
+    ];
+
     navigator.mediaSession.metadata = new MediaMetadata({
       title: $state.currentTrack.title,
-      artist: "",
-      album: "",
-      artwork: [],
+      artist: trackSource || "Zenfeed",
+      album: "Zenfeed Podcast",
+      artwork,
     });
 
-    navigator.mediaSession.setActionHandler("play", () => {
+    setMediaSessionActionHandler("play", () => {
       state.play();
     });
-    navigator.mediaSession.setActionHandler("pause", () => {
+    setMediaSessionActionHandler("pause", () => {
       state.pause();
     });
-    navigator.mediaSession.setActionHandler("previoustrack", () => {
-      state.playPrevious();
+    setMediaSessionActionHandler(
+      "previoustrack",
+      hasPreviousTrack ? () => state.playPrevious() : null,
+    );
+    setMediaSessionActionHandler(
+      "nexttrack",
+      hasNextTrack ? () => state.playNext() : null,
+    );
+    setMediaSessionActionHandler("seekbackward", (details) => {
+      handleSeekBackwardAction(details);
     });
-    navigator.mediaSession.setActionHandler("nexttrack", () => {
-      state.playNext();
+    setMediaSessionActionHandler("seekforward", (details) => {
+      handleSeekForwardAction(details);
     });
-    navigator.mediaSession.setActionHandler("seekbackward", () => {
-      skipBy(-10);
-    });
-    navigator.mediaSession.setActionHandler("seekforward", () => {
-      skipBy(10);
-    });
-    navigator.mediaSession.setActionHandler("seekto", (details) => {
+    setMediaSessionActionHandler("seekto", (details) => {
       const seekTime = details.seekTime;
 
       if (!player || typeof seekTime !== "number") return;
@@ -142,7 +179,7 @@
       state.updateTime(seekTime, getResolvedDuration());
       syncPositionState();
     });
-    navigator.mediaSession.setActionHandler("stop", () => {
+    setMediaSessionActionHandler("stop", () => {
       state.closePlayer();
     });
 
@@ -221,6 +258,7 @@
 
   function handleLoadedMetadata() {
     if (!player) return;
+    lastRetryTrackId = "";
     state.updateTime(
       getResolvedCurrentTime(player.currentTime),
       getResolvedDuration(player.duration),
@@ -253,6 +291,51 @@
     syncPositionState();
   }
 
+  function handleSeekBackwardAction(details: MediaSessionActionDetails) {
+    const seekOffset =
+      typeof details.seekOffset === "number" ? details.seekOffset : null;
+    if (seekOffset === null && hasPreviousTrack) {
+      state.playPrevious();
+      return;
+    }
+
+    skipBy(-(seekOffset ?? 10));
+  }
+
+  function handleSeekForwardAction(details: MediaSessionActionDetails) {
+    const seekOffset =
+      typeof details.seekOffset === "number" ? details.seekOffset : null;
+    if (seekOffset === null && hasNextTrack) {
+      state.playNext();
+      return;
+    }
+
+    skipBy(seekOffset ?? 10);
+  }
+
+  async function handlePlaybackError() {
+    const failedTrack = $state.currentTrack;
+    console.error("Audio playback error for:", failedTrack?.url);
+
+    if (!failedTrack || lastRetryTrackId === failedTrack.id) {
+      return;
+    }
+
+    lastRetryTrackId = failedTrack.id;
+
+    const refreshed = await state.refreshPlaylistIfNeeded(true);
+    if (!refreshed) return;
+
+    await tick();
+
+    if (player && $state.currentTrack?.id === failedTrack.id && $state.isPlaying) {
+      safelyRunPlayerAction(
+        player.play(),
+        "Audio replay failed after refreshing signed URL:",
+      );
+    }
+  }
+
   function formatTime(seconds: number): string {
     if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
     const minutes = Math.floor(seconds / 60);
@@ -274,7 +357,7 @@
       >
         <div class="flex items-center gap-2">
           <p
-            class="line-clamp-1 min-w-0 flex-1 text-[1rem] font-semibold leading-tight tracking-[-0.01em] text-slate-700"
+            class="line-clamp-1 min-w-0 flex-1 text-[1rem] font-semibold leading-tight tracking-[-0.01em] text-base-content/90"
             title={$state.currentTrack.title}
           >
             {$state.currentTrack.title}
@@ -303,158 +386,156 @@
           </button>
         </div>
 
-        <media-player
-          bind:this={player}
-          class="zenfeed-vidstack-player mt-0.5"
-          src={$state.currentTrack.url}
-          title={$state.currentTrack.title}
-          viewType="audio"
-          playsinline
-          preload="auto"
-          autoplay={$state.isPlaying}
-          on:play={() => state.syncPlaybackState(true)}
-          on:pause={() => state.syncPlaybackState(false)}
-          on:time-update={handleTimeUpdate}
-          on:duration-change={handleDurationChange}
-          on:loaded-metadata={handleLoadedMetadata}
-          on:rate-change={handleRateChange}
-          on:ended={state._handleTrackEnd}
-          on:error={() =>
-            console.error(
-              "Audio playback error for:",
-              $state.currentTrack?.url,
-            )}
-        >
-          <media-outlet></media-outlet>
+        {#key `${$state.currentTrack.id}:${$state.currentTrack.url}`}
+          <media-player
+            bind:this={player}
+            class="zenfeed-vidstack-player mt-0.5"
+            src={$state.currentTrack.url}
+            title={$state.currentTrack.title}
+            viewType="audio"
+            playsinline
+            preload="auto"
+            autoplay={$state.isPlaying}
+            on:play={() => state.syncPlaybackState(true)}
+            on:pause={() => state.syncPlaybackState(false)}
+            on:time-update={handleTimeUpdate}
+            on:duration-change={handleDurationChange}
+            on:loaded-metadata={handleLoadedMetadata}
+            on:rate-change={handleRateChange}
+            on:ended={state._handleTrackEnd}
+            on:error={handlePlaybackError}
+          >
+            <media-outlet></media-outlet>
 
-          <div class="zenfeed-player-frame">
-            <div class="flex items-center gap-1.5">
-              <div
-                class="shrink-0 whitespace-nowrap text-[1rem] font-medium leading-none text-base-content/55 tabular-nums"
-              >
-                {formatTime($state.currentTime)} / {formatTime($state.duration)}
+            <div class="zenfeed-player-frame">
+              <div class="flex items-center gap-1.5">
+                <div
+                  class="shrink-0 whitespace-nowrap text-[1rem] font-medium leading-none text-base-content/55 tabular-nums"
+                >
+                  {formatTime($state.currentTime)} / {formatTime($state.duration)}
+                </div>
+
+                <media-time-slider class="zenfeed-time-slider flex-1"
+                ></media-time-slider>
               </div>
 
-              <media-time-slider class="zenfeed-time-slider flex-1"
-              ></media-time-slider>
-            </div>
-
-            <div class="mt-0.5 flex items-center gap-1.25 overflow-x-auto">
-              <button
-                type="button"
-                class="zenfeed-icon-button"
-                aria-label="Previous track"
-                on:click={state.playPrevious}
-                disabled={!hasPreviousTrack}
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-[15px] w-[15px]"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
+              <div class="mt-0.5 flex items-center gap-1.25 overflow-x-auto">
+                <button
+                  type="button"
+                  class="zenfeed-icon-button"
+                  aria-label="Previous track"
+                  on:click={state.playPrevious}
+                  disabled={!hasPreviousTrack}
                 >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M11 19l-7-7 7-7m8 14l-7-7 7-7"
-                  />
-                </svg>
-              </button>
-
-              <button
-                type="button"
-                class="zenfeed-pill-button zenfeed-pill-button-subtle"
-                aria-label="Seek backward 10 seconds"
-                on:click={() => skipBy(-10)}
-              >
-                <span>-10</span>
-              </button>
-
-              <button
-                type="button"
-                class={`zenfeed-play-button ${$state.isPlaying ? "is-active" : ""}`}
-                aria-label={$state.isPlaying ? "Pause" : "Play"}
-                on:click={state.togglePlayPause}
-              >
-                {#if $state.isPlaying}
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    class="h-[16px] w-[16px]"
-                    fill="currentColor"
+                    class="h-[15px] w-[15px]"
+                    fill="none"
                     viewBox="0 0 24 24"
+                    stroke="currentColor"
                   >
                     <path
-                      d="M8 6.75A.75.75 0 0 1 8.75 6h2.5a.75.75 0 0 1 .75.75v10.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1-.75-.75V6.75Zm7 0A.75.75 0 0 1 15.75 6h2.5a.75.75 0 0 1 .75.75v10.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1-.75-.75V6.75Z"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M11 19l-7-7 7-7m8 14l-7-7 7-7"
                     />
                   </svg>
-                {:else}
+                </button>
+
+                <button
+                  type="button"
+                  class="zenfeed-pill-button zenfeed-pill-button-subtle"
+                  aria-label="Seek backward 10 seconds"
+                  on:click={() => skipBy(-10)}
+                >
+                  <span>-10</span>
+                </button>
+
+                <button
+                  type="button"
+                  class={`zenfeed-play-button ${$state.isPlaying ? "is-active" : ""}`}
+                  aria-label={$state.isPlaying ? "Pause" : "Play"}
+                  on:click={state.togglePlayPause}
+                >
+                  {#if $state.isPlaying}
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      class="h-[16px] w-[16px]"
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        d="M8 6.75A.75.75 0 0 1 8.75 6h2.5a.75.75 0 0 1 .75.75v10.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1-.75-.75V6.75Zm7 0A.75.75 0 0 1 15.75 6h2.5a.75.75 0 0 1 .75.75v10.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1-.75-.75V6.75Z"
+                      />
+                    </svg>
+                  {:else}
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      class="h-[16px] w-[16px] translate-x-[1px]"
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        d="M8.72 6.204A1.25 1.25 0 0 0 6.75 7.25v9.5c0 .99 1.08 1.593 1.97 1.046l8.084-4.75a1.25 1.25 0 0 0 0-2.092L8.72 6.204Z"
+                      />
+                    </svg>
+                  {/if}
+                </button>
+
+                <button
+                  type="button"
+                  class="zenfeed-pill-button zenfeed-pill-button-subtle"
+                  aria-label="Seek forward 10 seconds"
+                  on:click={() => skipBy(10)}
+                >
+                  <span>+10</span>
+                </button>
+
+                <button
+                  type="button"
+                  class="zenfeed-icon-button"
+                  aria-label="Next track"
+                  on:click={state.playNext}
+                  disabled={!hasNextTrack}
+                >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    class="h-[16px] w-[16px] translate-x-[1px]"
-                    fill="currentColor"
+                    class="h-[15px] w-[15px]"
+                    fill="none"
                     viewBox="0 0 24 24"
+                    stroke="currentColor"
                   >
                     <path
-                      d="M8.72 6.204A1.25 1.25 0 0 0 6.75 7.25v9.5c0 .99 1.08 1.593 1.97 1.046l8.084-4.75a1.25 1.25 0 0 0 0-2.092L8.72 6.204Z"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M13 5l7 7-7 7M5 5l7 7-7 7"
                     />
                   </svg>
-                {/if}
-              </button>
+                </button>
 
-              <button
-                type="button"
-                class="zenfeed-pill-button zenfeed-pill-button-subtle"
-                aria-label="Seek forward 10 seconds"
-                on:click={() => skipBy(10)}
-              >
-                <span>+10</span>
-              </button>
-
-              <button
-                type="button"
-                class="zenfeed-icon-button"
-                aria-label="Next track"
-                on:click={state.playNext}
-                disabled={!hasNextTrack}
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-[15px] w-[15px]"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
+                <div
+                  class="ml-0.5 flex items-center gap-1.25 border-l border-base-300/50 pl-2"
                 >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M13 5l7 7-7 7M5 5l7 7-7 7"
-                  />
-                </svg>
-              </button>
-
-              <div
-                class="ml-0.5 flex items-center gap-1.25 border-l border-base-300/50 pl-2"
-              >
-                {#each playbackRates as rate}
-                  <button
-                    type="button"
-                    class={`zenfeed-pill-button ${
-                      activePlaybackRate === rate
-                        ? "zenfeed-pill-button-active"
-                        : "zenfeed-pill-button-muted"
-                    }`}
-                    on:click={() => setPlaybackRate(rate)}
-                  >
-                    {rate}x
-                  </button>
-                {/each}
+                  {#each playbackRates as rate}
+                    <button
+                      type="button"
+                      class={`zenfeed-pill-button ${
+                        activePlaybackRate === rate
+                          ? "zenfeed-pill-button-active"
+                          : "zenfeed-pill-button-muted"
+                      }`}
+                      on:click={() => setPlaybackRate(rate)}
+                    >
+                      {rate}x
+                    </button>
+                  {/each}
+                </div>
               </div>
             </div>
-          </div>
-        </media-player>
+          </media-player>
+        {/key}
       </div>
     </div>
   </div>

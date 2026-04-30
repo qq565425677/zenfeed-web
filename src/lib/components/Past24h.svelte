@@ -7,7 +7,11 @@
   import { getTargetApiUrl } from "$lib/utils/apiUtils";
   import { env } from "$env/dynamic/public";
   import { goto } from "$app/navigation";
-  import { selectedFeedStore, queryFeedsStore } from "$lib/stores/feedStore"; // Renamed import to avoid conflict
+  import {
+    lastQueryRequestStore,
+    selectedFeedStore,
+    queryFeedsStore,
+  } from "$lib/stores/feedStore"; // Renamed import to avoid conflict
   import { get } from "svelte/store";
   import { shareElementAsImage } from "$lib/utils/shareUtils"; // NEW: Import the utility function
   import { getFeedItemId, compareFeeds } from "$lib/utils/feedUtils";
@@ -195,6 +199,40 @@
   // Reactive variable for the right panel detail view HTML
   $: rightPanelHtml = selectedFeedDesktop?.labels?.summary_html_snippet ?? "";
 
+  $: if (
+    !isMobile &&
+    $audioPlayerStore.isPlayerVisible &&
+    $audioPlayerStore.currentTrack &&
+    sortedGroupEntries.length > 0
+  ) {
+    const playingTrackId = $audioPlayerStore.currentTrack.id;
+    let matchedGroupName: string | null = null;
+    let matchedFeed: FeedVO | null = null;
+
+    for (const [groupName, feeds] of sortedGroupEntries) {
+      const matchedTrack = feeds.find(
+        (feed) => getFeedItemId(feed) === playingTrackId,
+      );
+      if (matchedTrack) {
+        matchedGroupName = groupName;
+        matchedFeed = matchedTrack;
+        break;
+      }
+    }
+
+    if (matchedGroupName && matchedFeed) {
+      if (activeGroupName !== matchedGroupName) {
+        activeGroupName = matchedGroupName;
+      }
+      if (
+        !selectedFeedDesktop ||
+        getFeedItemId(selectedFeedDesktop) !== playingTrackId
+      ) {
+        selectedFeedDesktop = matchedFeed;
+      }
+    }
+  }
+
   function contentOriginBadge(origin?: string): string {
     switch (origin) {
       case "full":
@@ -246,17 +284,18 @@
     try {
       const now = new Date();
       const past24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const requestBody = {
+        start: past24h.toISOString(),
+        end: now.toISOString(),
+        limit: 500,
+        query: searchTerm,
+        summarize: !!searchTerm,
+      };
 
       const response = await fetch(getTargetApiUrl("/query"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          start: past24h.toISOString(),
-          end: now.toISOString(),
-          limit: 500,
-          query: searchTerm,
-          summarize: !!searchTerm,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -276,7 +315,8 @@
       }
 
       const data: QueryResponse = await response.json();
-      queryFeedsStore.set(data); // NEW: Update the store with fetched data
+      lastQueryRequestStore.set(requestBody);
+      queryFeedsStore.set({ ...data, request: requestBody }); // NEW: Update the store with fetched data
       searchResults = data; // Update local state (triggers reactive updates)
       updateAvailableLabels(data.feeds);
 
