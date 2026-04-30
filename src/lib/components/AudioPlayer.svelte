@@ -23,10 +23,13 @@
 
   let player: PlayerHandle;
   let activePlaybackRate = 1;
-  let lastAppliedTrackId = "";
+  let lastAppliedTrackSignature = "";
   let lastAppliedPlaybackIntent: boolean | null = null;
   let playbackSyncToken = 0;
   let lastRetryTrackId = "";
+  let isPlayerReadyForPlayback = false;
+  let isScrubbing = false;
+  let scrubTime = 0;
 
   $: currentTrackIndex = $state.currentTrack
     ? $state.playlist.findIndex((track) => track.id === $state.currentTrack?.id)
@@ -36,13 +39,58 @@
   $: hasNextTrack =
     currentTrackIndex !== -1 && currentTrackIndex < $state.playlist.length - 1;
 
+  $: resolvedDuration = (() => {
+    if (
+      typeof $state.duration === "number" &&
+      Number.isFinite($state.duration) &&
+      $state.duration > 0
+    ) {
+      return $state.duration;
+    }
+
+    if (
+      typeof player?.duration === "number" &&
+      Number.isFinite(player.duration) &&
+      player.duration > 0
+    ) {
+      return player.duration;
+    }
+
+    return 0;
+  })();
+
+  $: resolvedCurrentTime = (() => {
+    const candidate = isScrubbing ? scrubTime : $state.currentTime;
+    if (typeof candidate === "number" && Number.isFinite(candidate) && candidate >= 0) {
+      return resolvedDuration > 0 ? Math.min(candidate, resolvedDuration) : candidate;
+    }
+
+    if (
+      typeof player?.currentTime === "number" &&
+      Number.isFinite(player.currentTime) &&
+      player.currentTime >= 0
+    ) {
+      return resolvedDuration > 0
+        ? Math.min(player.currentTime, resolvedDuration)
+        : player.currentTime;
+    }
+
+    return 0;
+  })();
+
+  $: sliderFillPercent =
+    resolvedDuration > 0
+      ? Math.max(0, Math.min((resolvedCurrentTime / resolvedDuration) * 100, 100))
+      : 0;
+
   $: if (player && $state.currentTrack) {
-    const trackChanged = lastAppliedTrackId !== $state.currentTrack.id;
+    const currentTrackSignature = getTrackSignature($state.currentTrack);
+    const trackChanged = lastAppliedTrackSignature !== currentTrackSignature;
     const playbackIntentChanged =
       lastAppliedPlaybackIntent !== $state.isPlaying;
 
     if (trackChanged || playbackIntentChanged) {
-      lastAppliedTrackId = $state.currentTrack.id;
+      lastAppliedTrackSignature = currentTrackSignature;
       lastAppliedPlaybackIntent = $state.isPlaying;
       void syncPlayerPlayback(trackChanged);
     }
@@ -74,6 +122,10 @@
     }
   }
 
+  function getTrackSignature(track: { id: string; url: string }): string {
+    return `${track.id}:${track.url}`;
+  }
+
   function clearMediaSession() {
     if (!browser || !("mediaSession" in navigator)) return;
 
@@ -102,6 +154,7 @@
     const currentToken = ++playbackSyncToken;
 
     if (trackChanged) {
+      isPlayerReadyForPlayback = false;
       await state.refreshPlaylistIfNeeded();
       if (currentToken !== playbackSyncToken) return;
       await tick();
@@ -112,6 +165,7 @@
     }
 
     if ($state.isPlaying) {
+      if (!isPlayerReadyForPlayback) return;
       safelyRunPlayerAction(player.play(), "Audio play failed:");
       return;
     }
@@ -197,6 +251,10 @@
   }
 
   function getResolvedCurrentTime(preferred?: number): number {
+    if (isScrubbing && Number.isFinite(scrubTime) && scrubTime >= 0) {
+      return scrubTime;
+    }
+
     for (const value of [preferred, player?.currentTime, $state.currentTime]) {
       if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
         return value;
@@ -239,6 +297,7 @@
   }
 
   function handleTimeUpdate(event: MediaTimeUpdateEvent) {
+    if (isScrubbing) return;
     state.updateTime(event.detail.currentTime, getResolvedDuration());
     syncPositionState();
   }
@@ -269,6 +328,13 @@
     syncPositionState();
   }
 
+  function handleCanPlay() {
+    isPlayerReadyForPlayback = true;
+    if ($state.isPlaying) {
+      void syncPlayerPlayback(false);
+    }
+  }
+
   function setPlaybackRate(rate: number) {
     activePlaybackRate = rate;
     if (player) {
@@ -288,6 +354,44 @@
 
     player.currentTime = nextTime;
     state.updateTime(nextTime, duration);
+    syncPositionState();
+  }
+
+  function getSliderMax(): number {
+    return Math.max(resolvedDuration, 0);
+  }
+
+  function getSliderValue(): number {
+    const max = getSliderMax();
+    const rawValue = resolvedCurrentTime;
+    if (!Number.isFinite(rawValue) || rawValue < 0) return 0;
+    return max > 0 ? Math.min(rawValue, max) : rawValue;
+  }
+
+  function beginScrub() {
+    isScrubbing = true;
+    scrubTime = getResolvedCurrentTime();
+  }
+
+  function updateScrubFromValue(value: string) {
+    const nextTime = Number(value);
+    if (!Number.isFinite(nextTime)) return;
+
+    isScrubbing = true;
+    scrubTime = nextTime;
+    state.updateTime(nextTime, getResolvedDuration());
+  }
+
+  function commitScrub() {
+    const nextTime = getSliderValue();
+    isScrubbing = false;
+    scrubTime = nextTime;
+
+    if (player) {
+      player.currentTime = nextTime;
+    }
+
+    state.updateTime(nextTime, getResolvedDuration());
     syncPositionState();
   }
 
@@ -328,7 +432,12 @@
 
     await tick();
 
-    if (player && $state.currentTrack?.id === failedTrack.id && $state.isPlaying) {
+    if (
+      player &&
+      isPlayerReadyForPlayback &&
+      $state.currentTrack?.id === failedTrack.id &&
+      $state.isPlaying
+    ) {
       safelyRunPlayerAction(
         player.play(),
         "Audio replay failed after refreshing signed URL:",
@@ -401,6 +510,7 @@
             on:time-update={handleTimeUpdate}
             on:duration-change={handleDurationChange}
             on:loaded-metadata={handleLoadedMetadata}
+            on:can-play={handleCanPlay}
             on:rate-change={handleRateChange}
             on:ended={state._handleTrackEnd}
             on:error={handlePlaybackError}
@@ -415,8 +525,37 @@
                   {formatTime($state.currentTime)} / {formatTime($state.duration)}
                 </div>
 
-                <media-time-slider class="zenfeed-time-slider flex-1"
-                ></media-time-slider>
+                <input
+                  class="zenfeed-time-slider zenfeed-native-slider flex-1"
+                  type="range"
+                  min="0"
+                  max={Math.max(resolvedDuration, 0.001)}
+                  step="0.1"
+                  value={resolvedCurrentTime}
+                  style={`--slider-fill-percent: ${sliderFillPercent}%`}
+                  aria-label="Seek"
+                  disabled={resolvedDuration <= 0}
+                  on:pointerdown={beginScrub}
+                  on:input={(event) =>
+                    updateScrubFromValue(
+                      (event.currentTarget as HTMLInputElement).value,
+                    )}
+                  on:change={commitScrub}
+                  on:pointerup={commitScrub}
+                  on:touchend={commitScrub}
+                  on:keyup={(event) => {
+                    if (
+                      event.key === "ArrowLeft" ||
+                      event.key === "ArrowRight" ||
+                      event.key === "Home" ||
+                      event.key === "End" ||
+                      event.key === "PageUp" ||
+                      event.key === "PageDown"
+                    ) {
+                      commitScrub();
+                    }
+                  }}
+                />
               </div>
 
               <div class="mt-0.5 flex items-center gap-1.25 overflow-x-auto">
@@ -605,8 +744,74 @@
     width: 100%;
   }
 
-  :global(.zenfeed-vidstack-player media-time-slider > shadow-root) {
-    display: contents;
+  :global(.zenfeed-native-slider) {
+    --slider-track-color: color-mix(
+      in oklab,
+      var(--color-base-content) 10%,
+      transparent
+    );
+    --slider-fill-color: linear-gradient(
+      90deg,
+      color-mix(in oklab, var(--color-primary) 94%, white),
+      color-mix(in oklab, var(--color-primary) 74%, var(--color-secondary))
+    );
+    appearance: none;
+    height: 1.75rem;
+    margin: 0;
+    border-radius: 9999px;
+    background: transparent;
+    cursor: pointer;
+    touch-action: pan-x;
+  }
+
+  :global(.zenfeed-native-slider:disabled) {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  :global(.zenfeed-native-slider::-webkit-slider-runnable-track) {
+    height: 0.32rem;
+    border-radius: 9999px;
+    background: linear-gradient(
+      90deg,
+      var(--color-primary) 0%,
+      var(--color-primary) var(--slider-fill-percent),
+      var(--slider-track-color) var(--slider-fill-percent),
+      var(--slider-track-color) 100%
+    );
+  }
+
+  :global(.zenfeed-native-slider::-webkit-slider-thumb) {
+    appearance: none;
+    width: 0.9rem;
+    height: 0.9rem;
+    margin-top: calc((0.32rem - 0.9rem) / 2);
+    border: var(--media-slider-thumb-border);
+    border-radius: 9999px;
+    background: var(--media-slider-thumb-bg);
+    box-shadow: var(--media-slider-thumb-box-shadow);
+  }
+
+  :global(.zenfeed-native-slider::-moz-range-track) {
+    height: 0.32rem;
+    border: none;
+    border-radius: 9999px;
+    background: var(--slider-track-color);
+  }
+
+  :global(.zenfeed-native-slider::-moz-range-progress) {
+    height: 0.32rem;
+    border-radius: 9999px;
+    background: color-mix(in oklab, var(--color-primary) 88%, white);
+  }
+
+  :global(.zenfeed-native-slider::-moz-range-thumb) {
+    width: 0.9rem;
+    height: 0.9rem;
+    border: var(--media-slider-thumb-border);
+    border-radius: 9999px;
+    background: var(--media-slider-thumb-bg);
+    box-shadow: var(--media-slider-thumb-box-shadow);
   }
 
   :global(.zenfeed-close-button) {
@@ -765,25 +970,6 @@
       color-mix(in oklab, var(--color-primary) 88%, white),
       color-mix(in oklab, var(--color-primary) 68%, var(--color-secondary))
     );
-  }
-
-  :global(.zenfeed-vidstack-player media-time-slider [part~="track"]) {
-    height: 0.32rem;
-    border-radius: 9999px;
-  }
-
-  :global(.zenfeed-vidstack-player media-time-slider [part~="track-fill"]) {
-    border-radius: 9999px;
-    background: linear-gradient(
-      90deg,
-      color-mix(in oklab, var(--color-primary) 94%, white),
-      color-mix(in oklab, var(--color-primary) 74%, var(--color-secondary))
-    );
-  }
-
-  :global(.zenfeed-vidstack-player media-time-slider [part="thumb"]) {
-    width: 0.58rem;
-    height: 0.58rem;
   }
 
   @media (max-width: 639px) {
