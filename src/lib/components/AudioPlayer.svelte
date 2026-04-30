@@ -38,6 +38,7 @@
   $: hasPreviousTrack = currentTrackIndex > 0;
   $: hasNextTrack =
     currentTrackIndex !== -1 && currentTrackIndex < $state.playlist.length - 1;
+  $: hasPlaylistContext = $state.playlist.length > 1;
 
   $: resolvedDuration = (() => {
     if (
@@ -97,11 +98,14 @@
   }
 
   $: if (browser && "mediaSession" in navigator) {
+    currentTrackIndex;
+    hasPreviousTrack;
+    hasNextTrack;
+    hasPlaylistContext;
+    $state.playlist.length;
+
     if ($state.currentTrack) {
-      updateMediaSession();
-      navigator.mediaSession.playbackState = $state.isPlaying
-        ? "playing"
-        : "paused";
+      syncMediaSessionState();
     } else {
       clearMediaSession();
     }
@@ -148,6 +152,17 @@
         // Some browsers do not support clearing every action.
       }
     }
+  }
+
+  function syncMediaSessionState() {
+    if (!browser || !("mediaSession" in navigator) || !$state.currentTrack) {
+      return;
+    }
+
+    updateMediaSession();
+    navigator.mediaSession.playbackState = $state.isPlaying
+      ? "playing"
+      : "paused";
   }
 
   async function syncPlayerPlayback(trackChanged: boolean) {
@@ -211,13 +226,16 @@
     setMediaSessionActionHandler("pause", () => {
       state.pause();
     });
-    setMediaSessionActionHandler(
-      "previoustrack",
-      hasPreviousTrack ? () => state.playPrevious() : null,
-    );
+    setMediaSessionActionHandler("previoustrack", () => {
+      handlePreviousTrackAction();
+    });
     setMediaSessionActionHandler(
       "nexttrack",
-      hasNextTrack ? () => state.playNext() : null,
+      hasPlaylistContext
+        ? () => {
+            handleNextTrackAction();
+          }
+        : null,
     );
     setMediaSessionActionHandler("seekbackward", (details) => {
       handleSeekBackwardAction(details);
@@ -330,9 +348,22 @@
 
   function handleCanPlay() {
     isPlayerReadyForPlayback = true;
+    syncMediaSessionState();
     if ($state.isPlaying) {
       void syncPlayerPlayback(false);
     }
+  }
+
+  function handlePlayerPlay() {
+    state.syncPlaybackState(true);
+    syncMediaSessionState();
+    syncPositionState();
+  }
+
+  function handlePlayerPause() {
+    state.syncPlaybackState(false);
+    syncMediaSessionState();
+    syncPositionState();
   }
 
   function setPlaybackRate(rate: number) {
@@ -354,6 +385,19 @@
 
     player.currentTime = nextTime;
     state.updateTime(nextTime, duration);
+    syncPositionState();
+  }
+
+  function seekToTime(nextTime: number) {
+    const duration = getResolvedDuration();
+    const clampedTime =
+      duration > 0 ? Math.max(0, Math.min(nextTime, duration)) : Math.max(0, nextTime);
+
+    if (player) {
+      player.currentTime = clampedTime;
+    }
+
+    state.updateTime(clampedTime, duration);
     syncPositionState();
   }
 
@@ -386,13 +430,29 @@
     const nextTime = getSliderValue();
     isScrubbing = false;
     scrubTime = nextTime;
+    seekToTime(nextTime);
+  }
 
-    if (player) {
-      player.currentTime = nextTime;
+  function handlePreviousTrackAction() {
+    const currentTime = getResolvedCurrentTime();
+
+    if (currentTime > 3) {
+      seekToTime(0);
+      return;
     }
 
-    state.updateTime(nextTime, getResolvedDuration());
-    syncPositionState();
+    if (hasPreviousTrack) {
+      state.playPrevious();
+      return;
+    }
+
+    seekToTime(0);
+  }
+
+  function handleNextTrackAction() {
+    if (hasNextTrack) {
+      state.playNext();
+    }
   }
 
   function handleSeekBackwardAction(details: MediaSessionActionDetails) {
@@ -505,8 +565,8 @@
             playsinline
             preload="auto"
             autoplay={$state.isPlaying}
-            on:play={() => state.syncPlaybackState(true)}
-            on:pause={() => state.syncPlaybackState(false)}
+            on:play={handlePlayerPlay}
+            on:pause={handlePlayerPause}
             on:time-update={handleTimeUpdate}
             on:duration-change={handleDurationChange}
             on:loaded-metadata={handleLoadedMetadata}
