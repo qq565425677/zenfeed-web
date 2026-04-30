@@ -36,6 +36,7 @@
   let swipeStartTime = 0;
   let autoSlideDuration = 300; // Auto slide animation duration (ms)
   let feedContainer: HTMLElement;
+  let lastFollowedPlayingTrackId = "";
 
   function contentOriginBadge(origin?: string): string {
     switch (origin) {
@@ -60,12 +61,23 @@
     $audioPlayerStore.currentTrack &&
     feedsList.length > 0
   ) {
-    const playingTrackIndex = feedsList.findIndex(
-      (feed) => getFeedItemId(feed) === $audioPlayerStore.currentTrack?.id,
-    );
-    if (playingTrackIndex !== -1 && playingTrackIndex !== currentFeedIndex) {
-      navigateToFeed(playingTrackIndex);
+    const playingTrackId = $audioPlayerStore.currentTrack.id;
+    if (playingTrackId !== lastFollowedPlayingTrackId) {
+      const playingTrackIndex = feedsList.findIndex(
+        (feed) => getFeedItemId(feed) === playingTrackId,
+      );
+      if (playingTrackIndex !== -1) {
+        lastFollowedPlayingTrackId = playingTrackId;
+        if (playingTrackIndex !== currentFeedIndex) {
+          navigateToFeed(playingTrackIndex);
+        }
+      }
     }
+  } else if (
+    !$audioPlayerStore.isPlayerVisible ||
+    !$audioPlayerStore.currentTrack
+  ) {
+    lastFollowedPlayingTrackId = "";
   }
 
   // Initialize and get all swipeable feeds

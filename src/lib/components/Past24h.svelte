@@ -87,6 +87,7 @@
   let detailPanelContentElement: HTMLDivElement | null = null; // NEW: Reference to the detail panel's scrollable content area
   let detailCardElement: HTMLDivElement | null = null;
   let copyStatus: "idle" | "copying" | "copied" | "error" = "idle";
+  let lastFollowedPlayingTrackId = "";
 
   // --- Reactive Derived State ---
 
@@ -206,31 +207,39 @@
     sortedGroupEntries.length > 0
   ) {
     const playingTrackId = $audioPlayerStore.currentTrack.id;
-    let matchedGroupName: string | null = null;
-    let matchedFeed: FeedVO | null = null;
+    if (playingTrackId !== lastFollowedPlayingTrackId) {
+      let matchedGroupName: string | null = null;
+      let matchedFeed: FeedVO | null = null;
 
-    for (const [groupName, feeds] of sortedGroupEntries) {
-      const matchedTrack = feeds.find(
-        (feed) => getFeedItemId(feed) === playingTrackId,
-      );
-      if (matchedTrack) {
-        matchedGroupName = groupName;
-        matchedFeed = matchedTrack;
-        break;
+      for (const [groupName, feeds] of sortedGroupEntries) {
+        const matchedTrack = feeds.find(
+          (feed) => getFeedItemId(feed) === playingTrackId,
+        );
+        if (matchedTrack) {
+          matchedGroupName = groupName;
+          matchedFeed = matchedTrack;
+          break;
+        }
+      }
+
+      if (matchedGroupName && matchedFeed) {
+        lastFollowedPlayingTrackId = playingTrackId;
+        if (activeGroupName !== matchedGroupName) {
+          activeGroupName = matchedGroupName;
+        }
+        if (
+          !selectedFeedDesktop ||
+          getFeedItemId(selectedFeedDesktop) !== playingTrackId
+        ) {
+          selectedFeedDesktop = matchedFeed;
+        }
       }
     }
-
-    if (matchedGroupName && matchedFeed) {
-      if (activeGroupName !== matchedGroupName) {
-        activeGroupName = matchedGroupName;
-      }
-      if (
-        !selectedFeedDesktop ||
-        getFeedItemId(selectedFeedDesktop) !== playingTrackId
-      ) {
-        selectedFeedDesktop = matchedFeed;
-      }
-    }
+  } else if (
+    !$audioPlayerStore.isPlayerVisible ||
+    !$audioPlayerStore.currentTrack
+  ) {
+    lastFollowedPlayingTrackId = "";
   }
 
   function contentOriginBadge(origin?: string): string {
